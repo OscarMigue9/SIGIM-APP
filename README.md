@@ -1,2 +1,2 @@
 # SIGIM-APP
-Perdon
+Actualizar stock en base de datos
