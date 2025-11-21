@@ -1,91 +1,43 @@
-<<<<<<< HEAD
-# InventarioApp - Flutter + Supabase
+# SIGIM-APP (Flutter + Supabase)
 
-Una aplicación móvil completa de gestión de inventarios desarrollada en Flutter con backend en Supabase.
+Aplicación móvil para gestión de inventarios, pedidos y usuarios construida en Flutter con un backend en Supabase.
 
-## 🚀 Características
+## Funcionalidades
+- Autenticación por correo y gestión de roles (administrador, vendedor, cliente)
+- CRUD de productos con control de stock y ajustes de inventario
+- Carrito, pedidos, historial y estados con línea de tiempo
+- Gestión de usuarios, clientes, direcciones y métodos de pago
+- Reportes y métricas básicas de ventas e inventario
 
-### Roles de Usuario
-- **Administrador General**: Gestión completa de usuarios, productos, inventario, pedidos y reportes
-- **Vendedor**: Gestión de productos, inventario, pedidos y ventas (limitado)
-- **Cliente**: Tienda, carrito, pedidos y perfil
+## Requerimientos
+- Flutter 3.x
+- Proyecto Supabase con URL y anon/public key
+- Dart/Flutter configurado en el PATH
 
-### Funcionalidades Principales
-- ✅ **Autenticación completa** con Supabase Auth
-- ✅ **Gestión de usuarios y roles**
-- ✅ **CRUD completo de productos**
-- ✅ **Control de inventario en tiempo real**
-- ✅ **Sistema de pedidos con validación de stock**
-- ✅ **Generación de reportes**
-- ✅ **Navegación por roles** (Drawer/BottomNavigation)
+## Configuración rápida
+1. Clona el repositorio y entra en la carpeta:
+   ```bash
+   git clone https://github.com/OscarMigue9/SIGIM-APP.git
+   cd SIGIM-APP
+   ```
+2. Instala dependencias:
+   ```bash
+   flutter pub get
+   ```
+3. Configura Supabase:
+   - Coloca las credenciales en `lib/config/supabase_config.dart`.
+   - Ejecuta `database/setup.sql` y, si aplica, las migraciones adicionales (`database/migration_*.sql`) en tu proyecto Supabase.
+4. Ejecuta la app (emulador o dispositivo conectado):
+   ```bash
+   flutter run
+   ```
 
-## 🛠️ Instalación y Configuración
+## Estructura
+- `lib/`: vistas, controladores, servicios y modelos.
+- `database/`: scripts iniciales y migraciones de Supabase.
+- `diagrams/`: diagramas de soporte.
+- `tools/`: utilidades para compilación e integraciones.
 
-### Paso 1: Configurar Supabase
-1. Ve a [supabase.com](https://supabase.com) y crea una cuenta
-2. Crea un nuevo proyecto
-3. Ve a **Settings > API**
-4. Copia tu **Project URL** y **anon/public key**
-
-### Paso 2: Configurar Base de Datos
-1. Ve a **SQL Editor** en tu panel de Supabase
-2. Ejecuta el script completo que está en `database/setup.sql`
-
-### Paso 3: Configurar Credenciales
-1. Abre `lib/config/supabase_config.dart`
-2. Reemplaza con tus credenciales reales de Supabase
-
-### Paso 4: Ejecutar
-```bash
-flutter pub get
-flutter run
-```
-
-¡Tu aplicación InventarioApp está lista para usar! 🎉
-=======
-# Software_ll
-
-Interfaz web MARLINE Dashboard para Muebles Lusander (HTML + CSS puro).
-
-Estructura
-- web/assets/global.css – Variables, layout y estilos globales (sidebar, topbar, cards, tablas, forms, panel preview, responsive)
-- web/pages/ – Páginas estáticas con datos ficticios
-	- login.html
-	- dashboard.html
-	- productos.html, producto.html
-	- inventario.html
-	- ventas.html
-	- ordenes.html
-	- recepcion.html
-	- ajustes.html
-	- devoluciones.html
-	- reportes.html
-	- usuarios.html
-	- alertas.html
-
-Cómo usar
-1. Abrir cualquier archivo HTML en el navegador (doble clic) o servir la carpeta `web` con un servidor estático.
-2. Las rutas de CSS y navegación son relativas, por lo que funcionan abriendo el archivo localmente.
-
-Mockups (PNG/PDF)
-- Rápido: abrir en Edge/Chrome, Device Toolbar móvil y capturar pantalla (PNG/PDF).
-- Automatizado (Playwright):
-	```powershell
-	cd "c:\Users\Samue\OneDrive\Documents\EE_Scraping\Software_ll"
-	npm init -y
-	npm i -D playwright
-	npx playwright install chromium
-	node .\tools\capture-mockups.mjs
-	start .\mockups
-	```
-
-Diseño
-- Paleta y tokens basados en variables CSS: `--bg`, `--sidebar`, `--surface`, `--text`, `--text-muted`, `--primary`, `--green`, `--red`, `--gold`.
-- Estilo “MARLINE Dashboard” con sidebar compact/expand (72/240px), topbar minimal, cards radius 12px, tablas densas, panel de preview a la derecha activado con `:target`.
-- Responsive: grid 3 columnas en ≥1200px, 1 columna en móvil.
-
-Accesibilidad
-- Contraste AA y foco visible con anillo azul.
-- Targets de 40×40px en botones principales.
->>>>>>> d08319fd2eb240bc2ef0a8374c5ab35bae760cbd
-ón InventarioApp está lista para usar! 🎉
+## Notas
+- No incluyas llaves o secretos reales en el repositorio; usa el archivo de configuración local.
+- `android/key.properties.example` sirve como plantilla para el keystore.
