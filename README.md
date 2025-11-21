@@ -1,2 +1,2 @@
 # SIGIM-APP
-Registro de historial de ajustes
+Generar reportes configurables
