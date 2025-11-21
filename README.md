@@ -1,3 +1,2 @@
 # SIGIM-APP
-Generar reportes configurables
-Imprimir reportes en pantalla
+Validar existencia de datos
