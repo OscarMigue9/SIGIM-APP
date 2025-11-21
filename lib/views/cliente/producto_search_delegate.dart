@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/producto.dart';
-import '../../services/cliente_service.dart';
 import '../../controllers/cliente_controller.dart';
 
 class ProductoSearchDelegate extends SearchDelegate<Producto?> {
@@ -87,7 +86,7 @@ class ProductoSearchDelegate extends SearchDelegate<Producto?> {
             final producto = productos[index];
             return ListTile(
               leading: CircleAvatar(
-                backgroundColor: _getCategoriaColor(producto.categoria).withOpacity(0.2),
+                backgroundColor: _getCategoriaColor(producto.categoria).withValues(alpha: 0.2),
                 child: Icon(
                   _getCategoriaIcon(producto.categoria),
                   color: _getCategoriaColor(producto.categoria),

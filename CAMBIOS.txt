@@ -1,0 +1,306 @@
+Registro de cambios (hasta el 2025-11-10)
+
+1) Autenticación y gestión de usuarios/roles
+- Se migró el inicio de sesión de “nombre/apellido” a “correo electrónico”.
+  Archivos: 
+    • lib/models/usuario.dart (nuevo campo email)
+    • lib/services/auth_service.dart (login/register por email)
+    • lib/controllers/auth_controller.dart (firma de métodos actualizada)
+    • lib/views/auth/login_screen.dart (campo de correo + validación)
+    • lib/views/auth/register_screen.dart (campo de correo + validación)
+  Por qué:
+    • Evitar colisiones por nombres repetidos y mejorar la autenticación siguiendo prácticas estándar.
+    • Facilitar futuros flujos como recuperación de contraseña y verificación.
+
+- Se añadió migración para el campo email con índice único y placeholders para usuarios existentes.
+  Archivos:
+    • database/migration_add_email_usuario.sql
+  Por qué:
+    • Garantizar unicidad del correo en base de datos y compatibilidad con datos previos.
+
+- Creación rápida de cliente para vendedores ahora exige correo.
+  Archivos:
+    • lib/views/vendedor/nuevo_pedido_screen.dart
+  Por qué:
+    • Evitar duplicados, permitir que el cliente use su correo para autenticación posterior.
+
+2) Checkout, direcciones y métodos de pago
+- Se implementó un checkout avanzado con:
+  • Tipo de entrega (envío/retiro)
+  • Dirección de envío con validación
+  • Métodos de pago (tarjeta, transferencia, nequi, efectivo)
+  • Regla: efectivo solo si el tipo de entrega es retiro
+  • Prefill de dirección y método de pago predeterminados
+  • Selectores para elegir direcciones y métodos guardados
+  Archivos:
+    • lib/views/cliente/checkout_screen.dart
+  Por qué:
+    • Cubrir escenarios reales de compra, reducir fricción y aplicar reglas de negocio.
+
+- Se añadió gestión de direcciones y métodos de pago del usuario (CRUD + predeterminados).
+  Archivos:
+    • lib/services/direccion_pago_service.dart (servicio de Supabase)
+    • lib/views/cliente/direcciones_screen.dart (UI CRUD direcciones)
+    • lib/views/cliente/metodos_pago_screen.dart (UI CRUD métodos)
+  Por qué:
+    • Permitir reutilizar información frecuente (direcciones y pagos), acelerar el checkout.
+
+- Se agregaron tablas y columnas necesarias en BD, con triggers para mantener un solo predeterminado.
+  Archivos:
+    • database/migration_add_address_payment.sql
+  Por qué:
+    • Persistencia adecuada de datos de dirección y pago y consistencia de “predeterminado”.
+
+3) Flujo de vendedor y creación de pedidos
+- Se añadió “Nuevo cliente rápido” desde el flujo de nuevo pedido del vendedor.
+  Archivos:
+    • lib/views/vendedor/nuevo_pedido_screen.dart
+  Por qué:
+    • Permitir registrar pedidos a clientes nuevos sin salir del flujo; mejora operativa en tienda.
+
+- Validaciones y descuento de stock en la creación de pedidos.
+  Archivos clave (mencionados anteriormente en servicios de cliente/pedido)
+  Por qué:
+    • Asegurar integridad del inventario y evitar ventas con stock insuficiente.
+
+4) Reportes y estadísticas
+- Se consolidaron reportes (Top productos, Pedidos por estado, Categorías) y exportación a PDF.
+  Archivos:
+    • lib/views/admin/reportes_screen.dart (UI de reportes)
+    • lib/services/report_service.dart (generación y share de PDF)
+  Por qué:
+    • Facilitar análisis y compartir reportes en formatos estándar.
+
+- Se removió/omitió la gráfica de ventas por día de la vista principal de reportes (manteniendo la métrica en datos) para simplificar la interfaz según solicitud.
+  Archivos:
+    • lib/views/admin/reportes_screen.dart
+  Por qué:
+    • Limpieza de UI y foco en indicadores más útiles para el usuario.
+
+5) Pantalla de perfil del cliente
+- Enlazado desde Perfil a Direcciones y Métodos de Pago; muestra nombre completo y rol del usuario.
+  Archivos:
+    • lib/views/cliente/cliente_home_screen.dart
+  Por qué:
+    • Centralizar la gestión de datos personales y facilitar el acceso a la configuración.
+
+6) Medidas de calidad, limpieza y pequeñas correcciones
+- Corrección de imports no usados y funciones sin uso.
+  Archivos:
+    • lib/views/cliente/producto_search_delegate.dart (remoción de import no utilizado)
+    • lib/views/vendedor/vendedor_home_screen.dart (remoción de helper no referenciado)
+  Por qué:
+    • Mejorar la calidad del código, reducir warnings y mantener el proyecto limpio.
+
+- Ajustes menores de lint y validaciones en formularios (mensajes de error claros y checks mínimos). 
+  Archivos:
+    • Varias pantallas afectadas (checkout, pago, registro)
+  Por qué:
+    • Mejorar UX y robustez.
+
+7) Reglas y decisiones de negocio aplicadas
+- Pago en efectivo solo disponible para retiro en tienda.
+  • Implementado en checkout (validación de método vs tipo entrega).
+  Por qué: 
+  • Evitar inconsistencias en envíos y reducir riesgo operativo.
+
+- Soporte de Nequi como método de pago (referencia guardada, sin datos sensibles).
+  • Implementado en checkout y métodos de pago.
+  Por qué:
+  • Responder a medios de pago locales comunes.
+
+Notas de despliegue / migraciones
+- Ejecutar en Supabase:
+  • database/migration_add_address_payment.sql
+  • database/migration_add_email_usuario.sql
+- Verificar que se apliquen los índices y triggers para “predeterminado” y el índice único de email.
+
+Trabajo pendiente destacado (alto nivel)
+- Enforcer de permisos a nivel servicio y hash de contraseñas (actualmente contraseña en texto plano); considerar migrar a Supabase Auth.
+- Stock por sucursal (modelo sucursal + stock_sucursal + UI de selección).
+- Ajustes de inventario con motivo e historial.
+- Exportación a Excel y filtros avanzados en reportes.
+- Alertas automáticas de stock bajo (umbrales configurables) y centro de notificaciones.
+- Políticas de descuento (tabla, motor, UI), aplicación en carrito/pedido.
+- Historial de cambio de estado de pedidos y UI de timeline.
+- Módulo de soporte (tickets) para clientes.
+  
+Actualizaciones 2025-11-15:
+8) Seguridad de contraseñas y hashing
+   - Implementado hashing bcrypt en registro, login (con migración transparente de contraseñas legacy) y cambio de contraseña.
+   Archivos:
+     • lib/utils/password_utils.dart (hash + verificación + política)
+     • lib/services/auth_service.dart (login ya no filtra por contraseña plana; migración automática si estaba sin hash)
+     • lib/services/usuario_service.dart (hash en creación y cambio de contraseña)
+     • lib/controllers/auth_controller.dart (validación de política antes de registrar/cambiar)
+   Por qué: Seguridad básica y preparación para futuras integraciones con Supabase Auth.
+
+9) Políticas de contraseña
+   - Añadida validación (longitud, mayúscula, minúscula, número, símbolo) antes de registrar o cambiar.
+   Archivos: password_utils.dart, auth_controller.dart.
+   Por qué: Reducir riesgo de contraseñas débiles.
+
+10) Historial de pedidos y timeline
+    - Tabla y migración pedido_historial + registro automático al cambiar estado.
+    - Modelo y controlador con cache de historial.
+    - Widget visual timeline y pantalla de detalle con acciones de transición.
+    Archivos:
+      • database/migration_add_pedido_historial.sql
+      • lib/models/pedido_historial.dart
+      • lib/services/pedido_service.dart (inserción historial en actualizarEstadoPedido, método obtenerHistorialPedido)
+      • lib/controllers/pedido_controller.dart
+      • lib/widgets/pedido_timeline.dart
+      • lib/views/pedido/pedido_detalle_screen.dart
+      • lib/views/vendedor/pedidos_vendedor_screen.dart (navegación a detalle)
+    Por qué: Trazabilidad de cambios de estado y mejora de UX en seguimiento.
+
+11) Acciones de cambio de estado
+    - Lógica condicional: confirmar, enviar, entregar, cancelar según rol y estado actual.
+    Archivos: pedido_detalle_screen.dart, pedido_controller.dart.
+    Por qué: Flujo operativo definido para administrador/vendedor y cancelación controlada para cliente.
+
+12) Políticas RLS temporales y corrección de recursión
+    - Se reemplazaron políticas anteriores que generaban recursion infinita.
+    Archivos: database/migration_add_rls_policies.sql
+    Por qué: Evitar errores 42P17 y dejar base lista para futura columna user_uuid.
+
+13) Tema claro/oscuro con persistencia
+    - Añadido controlador de tema y refactor de main para soportar ThemeMode dinámico.
+    Archivos:
+      • lib/controllers/theme_controller.dart
+      • lib/main.dart (ConsumerWidget + themeMode)
+    Por qué: Personalización de interfaz y mejor experiencia visual.
+
+14) Pantalla de configuración inicial
+    - Toggle de tema y visualización de política de contraseña + acceso a perfil.
+    Archivos: lib/views/config/config_screen.dart
+    Por qué: Centralizar ajustes clave de la aplicación.
+
+15) Edición básica de perfil
+    - Formulario para actualizar nombre, apellido, email y cambiar contraseña opcionalmente.
+    Archivos: lib/views/perfil/perfil_screen.dart
+    Por qué: Permitir que el usuario mantenga sus datos actualizados.
+
+Pendiente próximo (Sprint 2 restante):
+ - Integrar navegación global a Configuración y Perfil (menú / drawer si aplica).
+ - Mejorar estados vacíos y mensajes de error unificados.
+ - Tests unitarios de servicios críticos (auth, pedido, usuario).
+ 
+Integración final Sprint 2 (2025-11-15):
+ - Navegación global a Configuración añadida (ícono ajustes) en:
+   • lib/views/admin/admin_home_screen.dart
+   • lib/views/vendedor/vendedor_home_screen.dart
+   • lib/views/cliente/cliente_home_screen.dart
+ - Pantalla Configuración enlaza a Perfil para edición de datos.
+ - Sprint 2 marcado como COMPLETO.
+
+Sprint 3 - Inicio (2025-11-16):
+ 1) Alertas iniciales
+    - Añadido controlador de alertas con conteos: productos con stock bajo y pedidos pendientes.
+    Archivos:
+      • lib/controllers/alertas_controller.dart
+    Por qué: Base para visibilidad operativa rápida y futuros umbrales configurables.
+
+ 2) Dependencias para exportación
+    - Agregadas librerías para generar y compartir archivos Excel/CSV.
+    Archivos:
+      • pubspec.yaml (excel, share_plus, path_provider)
+    Por qué: Preparar funcionalidad de exportación de reportes y datos de inventario.
+
+ 3) Badges en menú Admin (parcial)
+    - Integrado badge para pedidos pendientes en drawer de administrador.
+    - Refactor de _buildDrawerItem para soportar número dinámico.
+    Archivos:
+      • lib/views/admin/admin_home_screen.dart
+    Por qué: Retroalimentación visual inmediata sobre pendientes clave.
+
+4) Badge de stock bajo (admin y vendedor)
+    - Añadido ítem "Stock Bajo" con badge dinámico en drawer Admin.
+    - Añadido badge de stock en opción Inventario de drawer Vendedor.
+    - Refactor de drawer vendedor para soportar badges (stack + Positioned).
+    Archivos:
+      • lib/views/admin/admin_home_screen.dart
+      • lib/views/vendedor/vendedor_home_screen.dart
+    Por qué: Visibilidad rápida de productos que requieren reposición.
+
+5) Reutilización de badges y pedidos pendientes vendedor
+    - Creado widget reutilizable `badge_icon.dart` para íconos con contador.
+    - Refactor del drawer Admin para usar `BadgeIcon` en Stock Bajo y Pedidos.
+    - Añadido nuevo ítem "Pedidos Pendientes" con badge en drawer Vendedor.
+    Archivos:
+      • lib/widgets/badge_icon.dart
+      • lib/views/admin/admin_home_screen.dart
+      • lib/views/vendedor/vendedor_home_screen.dart
+    Por qué: Facilitar futura expansión de alertas y reducir duplicación de código.
+
+6) Exportación a Excel y CSV (productos, pedidos, ventas por día)
+    - Métodos añadidos en `report_service.dart` para generar archivos .xlsx y .csv.
+    - Integración de botones y menú de exportación en pantalla de reportes.
+    - Soporte para compartir archivos generados (Share Plus).
+    Archivos:
+      • lib/services/report_service.dart
+      • lib/views/admin/reportes_screen.dart
+    Por qué: Permitir análisis externo y respaldo de información clave.
+
+7) Pantallas estáticas de Ayuda y Acerca de
+    - Añadidas vistas con guía rápida, consejos y créditos/licencia.
+    - Integradas en la pantalla de Configuración con accesos dedicados.
+    Archivos:
+      • lib/views/info/ayuda_screen.dart
+      • lib/views/info/acerca_screen.dart
+      • lib/views/config/config_screen.dart (navegación añadida)
+    Por qué: Mejorar onboarding y transparencia sobre la aplicación.
+
+Sprint 3 FINALIZADO (2025-11-16)
+- Todas las tareas previstas completadas: alertas/badges, exportación Excel/CSV, pantallas Ayuda y Acerca.
+- Próximo enfoque (Sprint 4 sugerido): seguridad avanzada (Supabase Auth + RLS), descuentos, ajustes de inventario, tests y CI/CD, notificaciones push.
+
+Sprint 4 - Inicio (Migración Supabase Auth)
+ - Migración: añadido campo user_uuid en tabla usuario (migration_add_user_uuid.sql)
+ - Refactor AuthService: login y register ahora usan Supabase Auth (signIn/signUp) y enlazan perfil por user_uuid.
+ - Compatibilidad: hash local de contraseña mantenido temporalmente para transición; se actualiza user_uuid al primer login si faltaba.
+ - Usuario modelo actualizado con campo userUuid.
+ - Pendiente: políticas RLS seguras usando user_uuid y proceso de reset de contraseñas legacy.
+ Archivos:
+   • database/migration_add_user_uuid.sql
+   • lib/models/usuario.dart
+   • lib/services/auth_service.dart (refactor completo)
+   • lib/controllers/auth_controller.dart (ajustes menor duplicación)
+ Razón: Alinear autenticación con Supabase nativa para seguridad y futuras políticas.
+Sprint 4 - Descuentos y Promos (inicio)
+Sprint 4 - Ajustes de Inventario (inicio)
+ - Migración tabla `ajuste_inventario` con campos: producto, usuario, delta (+/-), stock_inicial, stock_final, motivo, fecha.
+ - Función Postgres `aplicar_ajuste_inventario` (transacción atómica: valida roles, stock no negativo y registra ajuste mientras actualiza el stock del producto).
+ - Modelo `ajuste_inventario.dart` y servicio `ajuste_inventario_service.dart` con métodos para aplicar ajuste y listar con filtros (producto, fecha desde/hasta).
+ - Políticas RLS: lectura e inserción restringidas a admin/vendedor; sin UPDATE (histórico inmutable); DELETE solo admin.
+ Pendiente: UI de gestión (listado + formulario), filtros avanzados y exportación a CSV/Excel.
+ Archivos:
+   • database/migration_add_ajuste_inventario.sql
+   • lib/models/ajuste_inventario.dart
+   • lib/services/ajuste_inventario_service.dart
+ Razón: Registrar entradas/salidas de stock con trazabilidad y control de roles.
+ - Migración tabla `descuento` con campos: tipo (PORCENTAJE/FIJO), valor, fechas, min_total, producto/categoría opcional, límites de uso.
+ - Modelo `descuento.dart` y servicio `descuento_service.dart` con lógica aplicable y cálculo.
+ - Pedido: soporte de código de descuento en `crearPedido` (aplica si válido) y campo id_descuento opcional.
+ - UI: campo de entrada de código en `nuevo_pedido_screen.dart` (vendedor).
+ Pendiente: mostrar total post-descuento explícito, validaciones de uso en UI y historial de descuentos por pedido.
+ Archivos:
+   • database/migration_add_descuento.sql
+   • lib/models/descuento.dart
+   • lib/services/descuento_service.dart
+   • lib/services/pedido_service.dart
+   • lib/views/vendedor/nuevo_pedido_screen.dart
+Sprint 4 - RLS Segura (propuesta políticas)
+ - Nueva migración `migration_secure_rls.sql` con políticas por rol (admin, vendedor, cliente) usando user_uuid y funciones helpers.
+ - Tablas cubiertas: usuario, producto, pedido, detalle_pedido, pedido_historial.
+ - Lecturas: clientes ven solo sus pedidos/detalles/historial; admin/vendedor ven todo.
+ - Escrituras: solo admin/vendedor crean/modifican productos y estados; cliente crea sus pedidos y puede cancelar (control de lógica adicional en backend).
+ - Helper functions: is_admin(), is_vendedor(), is_cliente() para simplificar políticas y evitar recursion compleja.
+ - Pendiente: política granular para permitir únicamente cancelación al cliente (no otros updates) y agregar auditoría.
+
+Pendiente Sprint 3 próximo:
+  - Badge de stock bajo (productos) y replicar en vistas de vendedor.
+  - Exportación Excel/CSV de productos, pedidos y ventas (service + UI + share).
+  - Pantallas estáticas de Ayuda y Acerca de.
+  - Actualización de CAMBIOS.txt tras cada hito.
+  - Revisión de refresco periódico/ manual de alertas.

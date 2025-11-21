@@ -1,0 +1,9 @@
+# Copia este archivo a key.properties y reemplaza los valores
+# Ruta absoluta al keystore JKS
+storeFile=C:\\Users\\TU_USUARIO\\my-key.jks
+# Contraseña del keystore
+storePassword=TU_PASS
+# Alias de la clave dentro del keystore
+keyAlias=upload
+# Contraseña de la clave
+keyPassword=TU_PASS

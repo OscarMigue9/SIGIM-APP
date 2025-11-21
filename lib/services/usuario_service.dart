@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/usuario.dart';
 import '../models/rol.dart';
 import 'supabase_service.dart';
+import '../utils/password_utils.dart';
 
 class UsuarioService {
   final SupabaseClient _client = SupabaseService.instance.client;
@@ -34,10 +35,29 @@ class UsuarioService {
   // Crear usuario
   Future<Usuario> crearUsuario(Usuario usuario) async {
     try {
+      if (usuario.email == null || usuario.email!.isEmpty) {
+        throw Exception('Email requerido');
+      }
+
+      // Crear en Supabase Auth (si es nuevo)
+      if (usuario.contrasena != null && usuario.contrasena!.isNotEmpty) {
+        try {
+          await _client.auth.signUp(
+            email: usuario.email!,
+            password: usuario.contrasena!,
+          );
+        } catch (e) {
+          // Si ya existe en Auth, continuamos para sincronizar la fila
+          final msg = e.toString();
+          if (!msg.contains('already registered')) rethrow;
+        }
+      }
+
       final userData = await _client.from('usuario').insert({
         'nombre': usuario.nombre,
         'apellido': usuario.apellido,
-        'contrasena': usuario.contrasena,
+        'email': usuario.email,
+        'contrasena': usuario.contrasena != null ? PasswordUtils.hash(usuario.contrasena!) : null,
         'id_rol': usuario.idRol,
       }).select('''
         *,
@@ -66,6 +86,7 @@ class UsuarioService {
       final userData = await _client.from('usuario').update({
         'nombre': usuario.nombre,
         'apellido': usuario.apellido,
+        'email': usuario.email,
         'id_rol': usuario.idRol,
       }).eq('id_usuario', usuario.idUsuario!).select('''
         *,
@@ -87,9 +108,10 @@ class UsuarioService {
   // Cambiar contraseña
   Future<bool> cambiarContrasena(int idUsuario, String nuevaContrasena) async {
     try {
+      final hashed = PasswordUtils.hash(nuevaContrasena);
       await _client
           .from('usuario')
-          .update({'contrasena': nuevaContrasena})
+          .update({'contrasena': hashed})
           .eq('id_usuario', idUsuario);
       return true;
     } catch (e) {
@@ -175,6 +197,29 @@ class UsuarioService {
       };
     } catch (e) {
       throw Exception('Error al obtener estadísticas: $e');
+    }
+  }
+
+  // Obtener solo clientes (rol == 3)
+  Future<List<Usuario>> obtenerClientes() async {
+    try {
+      final response = await _client
+          .from('usuario')
+          .select('''
+            id_usuario, nombre, apellido, id_rol
+          ''')
+          .eq('id_rol', 3)
+          .order('nombre');
+
+      return (response as List).map((json) {
+        return Usuario.fromJson({
+          ...json,
+          // nombre_rol opcional: lo resolvemos estático para evitar join
+          'nombre_rol': 'Cliente',
+        });
+      }).toList();
+    } catch (e) {
+      throw Exception('Error al obtener clientes: $e');
     }
   }
 }

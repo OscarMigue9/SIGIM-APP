@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../controllers/auth_controller.dart';
-import '../admin/gestion_productos_screen.dart';
+import '../config/config_screen.dart';
+import '../../services/metrics_service.dart';
+import 'inventario_vendedor_screen.dart';
+import 'pedidos_vendedor_screen.dart';
+import 'nuevo_pedido_screen.dart';
+import 'ventas_vendedor_screen.dart';
+import '../../controllers/alertas_controller.dart';
 
 class VendedorHomeScreen extends ConsumerStatefulWidget {
   const VendedorHomeScreen({super.key});
@@ -11,6 +17,36 @@ class VendedorHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
+  final _metricsService = MetricsService();
+  Map<String, dynamic>? _metrics;
+  List<Map<String, dynamic>> _ventasRecientes = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      final auth = ref.read(authControllerProvider).usuario;
+      if (auth != null && auth.idUsuario != null) {
+        try {
+          final vendedorId = auth.idUsuario!;
+          final m = await _metricsService.getVendedorMetrics(vendedorId);
+          final ventas = await _metricsService.getRecentSalesVendedor(vendedorId, limit: 5);
+          if (!mounted) return;
+          setState(() {
+            _metrics = m;
+            _ventasRecientes = ventas;
+            _loading = false;
+          });
+        } catch (_) {
+          if (!mounted) return;
+          setState(() { _loading = false; });
+        }
+      } else {
+        setState(() { _loading = false; });
+      }
+    });
+  }
   Future<void> _logout() async {
     final confirmed = await _showLogoutDialog();
     if (confirmed == true) {
@@ -48,6 +84,14 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Configuración',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ConfigScreen()),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _logout,
             tooltip: 'Cerrar Sesión',
@@ -55,7 +99,7 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
         ],
       ),
       drawer: _buildDrawer(context),
-      body: _buildVendedorContent(),
+      body: _loading ? const Center(child: CircularProgressIndicator()) : _buildVendedorContent(),
     );
   }
 
@@ -63,21 +107,24 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
     return Drawer(
       child: Column(
         children: [
-          UserAccountsDrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.green.shade700,
-            ),
-            accountName: const Text('Vendedor'),
-            accountEmail: const Text('vendedor@inventarioapp.com'),
-            currentAccountPicture: const CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Icon(
-                Icons.storefront,
-                color: Colors.green,
-                size: 40,
+          Consumer(builder: (context, ref, _) {
+            final user = ref.watch(currentUserProvider);
+            return UserAccountsDrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.green.shade700,
               ),
-            ),
-          ),
+              accountName: Text(user?.nombreCompleto ?? 'Vendedor'),
+              accountEmail: Text(user?.email ?? '-'),
+              currentAccountPicture: const CircleAvatar(
+                backgroundColor: Colors.white,
+                child: Icon(
+                  Icons.storefront,
+                  color: Colors.green,
+                  size: 40,
+                ),
+              ),
+            );
+          }),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -87,33 +134,24 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
                   title: 'Dashboard',
                   onTap: () => Navigator.pop(context),
                 ),
-                _buildDrawerItem(
-                  icon: Icons.inventory_2,
-                  title: 'Productos',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const GestionProductosScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.warehouse,
-                  title: 'Inventario',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showSnackBar('Consulta de Inventario - Próximamente');
-                  },
-                ),
+                Consumer(builder: (context, ref, _) {
+                  final alertas = ref.watch(alertasControllerProvider);
+                  return _buildDrawerItem(
+                    icon: Icons.warehouse,
+                    title: 'Inventario',
+                    badge: alertas.stockBajo,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const InventarioVendedorScreen()));
+                    },
+                  );
+                }),
                 _buildDrawerItem(
                   icon: Icons.receipt_long,
                   title: 'Pedidos',
                   onTap: () {
                     Navigator.pop(context);
-                    _showSnackBar('Gestión de Pedidos - Próximamente');
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const PedidosVendedorScreen()));
                   },
                 ),
                 _buildDrawerItem(
@@ -121,7 +159,7 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
                   title: 'Ventas',
                   onTap: () {
                     Navigator.pop(context);
-                    _showSnackBar('Historial de Ventas - Próximamente');
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const VentasVendedorScreen()));
                   },
                 ),
               ],
@@ -136,9 +174,30 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    int badge = 0,
   }) {
     return ListTile(
-      leading: Icon(icon, color: Colors.green.shade700),
+      leading: Stack(
+        children: [
+          Icon(icon, color: Colors.green.shade700),
+          if (badge > 0)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badge.toString(),
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+        ],
+      ),
       title: Text(title),
       onTap: onTap,
       dense: true,
@@ -151,13 +210,9 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Resumen de Ventas',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
           _buildSalesMetrics(),
@@ -176,7 +231,7 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
         Expanded(
           child: _buildMetricCard(
             title: 'Ventas Hoy',
-            value: '\$1,240',
+            value: _metrics != null ? '\$${((_metrics!['ventasHoy'] ?? 0) as num).toStringAsFixed(2)}' : '---',
             icon: Icons.today,
             color: Colors.green,
           ),
@@ -185,7 +240,7 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
         Expanded(
           child: _buildMetricCard(
             title: 'Pedidos',
-            value: '12',
+            value: _metrics != null ? ((_metrics!['pedidosHoy'] ?? 0) as num).toString() : '---',
             icon: Icons.receipt_long,
             color: Colors.blue,
           ),
@@ -203,11 +258,11 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.05),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 2),
@@ -224,14 +279,13 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
             ),
           ),
           Text(
             title,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey.shade600,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -243,46 +297,31 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Acciones Rápidas',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 2.5,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+        Column(
           children: [
-            _buildActionButton(
-              title: 'Nuevo Pedido',
-              icon: Icons.add_shopping_cart,
-              color: Colors.green,
-              onTap: () => _showSnackBar('Crear Pedido - Próximamente'),
+            SizedBox(
+              width: double.infinity,
+              child: _buildActionButton(
+                title: 'Ver Inventario',
+                icon: Icons.inventory_2,
+                color: Colors.blue,
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventarioVendedorScreen())),
+              ),
             ),
-            _buildActionButton(
-              title: 'Ver Inventario',
-              icon: Icons.inventory_2,
-              color: Colors.blue,
-              onTap: () => _showSnackBar('Ver Inventario - Próximamente'),
-            ),
-            _buildActionButton(
-              title: 'Consultar Stock',
-              icon: Icons.search,
-              color: Colors.orange,
-              onTap: () => _showSnackBar('Consultar Stock - Próximamente'),
-            ),
-            _buildActionButton(
-              title: 'Mis Ventas',
-              icon: Icons.bar_chart,
-              color: Colors.purple,
-              onTap: () => _showSnackBar('Ver Ventas - Próximamente'),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: _buildActionButton(
+                title: 'Mis Ventas',
+                icon: Icons.bar_chart,
+                color: Colors.purple,
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VentasVendedorScreen())),
+              ),
             ),
           ],
         ),
@@ -290,6 +329,7 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
     );
   }
 
+  // Botón reutilizable para acciones rápidas
   Widget _buildActionButton({
     required String title,
     required IconData icon,
@@ -299,23 +339,24 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
             Icon(icon, color: color, size: 20),
             const SizedBox(width: 8),
-            Expanded(
+            Flexible(
               child: Text(
                 title,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: color,
                   fontWeight: FontWeight.w600,
-                  fontSize: 12,
+                  fontSize: 14,
                 ),
               ),
             ),
@@ -334,48 +375,61 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
           ),
         ),
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.05),
                 spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: Column(
-            children: [
-              _buildSaleItem(
-                customerName: 'María García',
-                amount: '\$150.00',
-                products: '3 productos',
-                time: 'Hace 1 hora',
-              ),
-              _buildSaleItem(
-                customerName: 'Carlos López',
-                amount: '\$89.50',
-                products: '2 productos',
-                time: 'Hace 2 horas',
-              ),
-              _buildSaleItem(
-                customerName: 'Ana Martínez',
-                amount: '\$320.00',
-                products: '5 productos',
-                time: 'Hace 3 horas',
-              ),
-            ],
+          child: _ventasRecientes.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('Sin ventas recientes', style: TextStyle(color: Colors.grey.shade600)),
+                )
+              : Column(
+                  children: _ventasRecientes.map((v) {
+                    return _buildSaleItem(
+                      customerName: v['nombreCliente'] as String,
+                      amount: '\$${(v['total'] as num).toStringAsFixed(2)}',
+                      products: v['productos'] as String,
+                      time: _formatearTiempo(v['fecha']),
+                    );
+                  }).toList(),
+                ),
+        ),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ElevatedButton.icon(
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NuevoPedidoScreen())),
+            icon: const Icon(Icons.add),
+            label: const Text('Nuevo Pedido'),
           ),
         ),
       ],
     );
+  }
+
+  String _formatearTiempo(dynamic iso) {
+    try {
+      final fecha = DateTime.parse(iso as String);
+      final diff = DateTime.now().difference(fecha);
+      if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
+      if (diff.inHours < 24) return 'Hace ${diff.inHours} h';
+      return '${fecha.day}/${fecha.month}/${fecha.year}';
+    } catch (_) {
+      return '';
+    }
   }
 
   Widget _buildSaleItem({
@@ -392,7 +446,7 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
+              color: Colors.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Icon(Icons.person, color: Colors.green, size: 20),
@@ -404,15 +458,12 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
               children: [
                 Text(
                   customerName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   products,
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                     fontSize: 12,
                   ),
                 ),
@@ -433,7 +484,7 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
               Text(
                 time,
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   fontSize: 11,
                 ),
               ),
@@ -444,16 +495,5 @@ class _VendedorHomeScreenState extends ConsumerState<VendedorHomeScreen> {
     );
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green.shade700,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    );
-  }
+  // (intencionalmente sin snackbar por ahora; se añadirá si se requiere)
 }

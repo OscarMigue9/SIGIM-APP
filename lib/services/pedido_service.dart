@@ -2,8 +2,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pedido.dart';
 import '../models/detalle_pedido.dart';
 import '../models/estado_pedido.dart';
+import '../models/pedido_historial.dart';
 import 'supabase_service.dart';
 import 'producto_service.dart';
+import 'descuento_service.dart';
 
 class PedidoService {
   final SupabaseClient _client = SupabaseService.instance.client;
@@ -11,10 +13,17 @@ class PedidoService {
 
   // REQ-004: Registro de pedidos
   Future<Pedido> crearPedido({
-    required int idCliente,
+    int? idCliente,
+    int? idClienteContacto,
+    int? idVendedor,
     required List<DetallePedido> detalles,
+    String? codigoDescuento,
+    String? metodoPago,
   }) async {
     try {
+      if (idCliente == null && idClienteContacto == null) {
+        throw Exception('Se requiere un cliente o contacto');
+      }
       // Validar stock antes de confirmar
       for (final detalle in detalles) {
         final producto = await _productoService.obtenerProductoPorId(detalle.idProducto);
@@ -32,15 +41,32 @@ class PedidoService {
         total += detalle.subtotal;
       }
 
+      int? idDescuentoAplicado;
+      if (codigoDescuento != null && codigoDescuento.trim().isNotEmpty) {
+        final descuentoService = DescuentoService();
+        final d = await descuentoService.obtenerPorCodigo(codigoDescuento.trim());
+        if (d != null && descuentoService.esAplicable(d, total)) {
+          total = descuentoService.calcularTotalConDescuento(d, total);
+          idDescuentoAplicado = d.idDescuento;
+          // incrementar uso opcional (se puede hacer trigger o RPC). Ignorar errores.
+          try { if (d.idDescuento != null) await descuentoService.incrementarUso(d.idDescuento!); } catch (_) {}
+        }
+      }
+
       // Crear pedido
+      final insertData = {
+        if (idCliente != null) 'id_cliente': idCliente,
+        if (idClienteContacto != null) 'id_cliente_contacto': idClienteContacto,
+        'fecha_creacion': DateTime.now().toIso8601String(),
+        'id_estado': EstadoPedidoConstants.pendiente,
+        'total': total,
+        if (idDescuentoAplicado != null) 'id_descuento': idDescuentoAplicado,
+        if (idVendedor != null) 'id_vendedor': idVendedor,
+        if (metodoPago != null) 'metodo_pago': metodoPago,
+      };
       final pedidoResponse = await _client
           .from('pedido')
-          .insert({
-            'id_cliente': idCliente,
-            'fecha_creacion': DateTime.now().toIso8601String(),
-            'id_estado': EstadoPedidoConstants.pendiente,
-            'total': total,
-          })
+          .insert(insertData)
           .select()
           .single();
 
@@ -71,14 +97,14 @@ class PedidoService {
 
   Future<List<Pedido>> obtenerPedidos({int? idCliente}) async {
     try {
-      late final dynamic query;
-      
+      dynamic query;
       if (idCliente != null) {
         query = _client
             .from('pedido')
             .select('''
               *,
-              usuario:id_cliente (nombre, apellido),
+              usuario:usuario!pedido_id_cliente_fkey (nombre, apellido),
+              contacto:cliente_contacto!pedido_id_cliente_contacto_fkey (nombre, apellido),
               estado_pedido:id_estado (nombre_estado)
             ''')
             .eq('id_cliente', idCliente)
@@ -88,23 +114,68 @@ class PedidoService {
             .from('pedido')
             .select('''
               *,
-              usuario:id_cliente (nombre, apellido),
+              usuario:usuario!pedido_id_cliente_fkey (nombre, apellido),
+              contacto:cliente_contacto!pedido_id_cliente_contacto_fkey (nombre, apellido),
               estado_pedido:id_estado (nombre_estado)
             ''')
             .order('fecha_creacion', ascending: false);
       }
-
-      final response = await query;
-
-      return (response as List).map((json) {
+      final raw = await query;
+      final List data = raw as List;
+      return data.map<Pedido>((json) {
+        final contacto = json['contacto'];
+        final usuario = json['usuario'];
+        final nombreCliente = contacto != null
+            ? '${contacto['nombre']} ${contacto['apellido']}'
+            : (usuario != null ? '${usuario['nombre']} ${usuario['apellido']}' : 'Cliente');
         return Pedido.fromJson({
           ...json,
-          'nombre_cliente': '${json['usuario']['nombre']} ${json['usuario']['apellido']}',
+          'nombre_cliente': nombreCliente,
           'nombre_estado': json['estado_pedido']['nombre_estado'],
         });
       }).toList();
     } catch (e) {
       throw Exception('Error al obtener pedidos: $e');
+    }
+  }
+
+  Future<List<Pedido>> obtenerPedidosVendedor(int idVendedor) async {
+    try {
+      dynamic query = _client
+          .from('pedido')
+          .select('''
+            *,
+            usuario:usuario!pedido_id_cliente_fkey (nombre, apellido),
+            contacto:cliente_contacto!pedido_id_cliente_contacto_fkey (nombre, apellido),
+            estado_pedido:id_estado (nombre_estado)
+          ''');
+      // Filtro antes de orden
+      query = query.eq('id_vendedor', idVendedor).order('fecha_creacion', ascending: false);
+      dynamic raw;
+      try {
+        raw = await query;
+      } catch (e) {
+        final msg = e.toString().toLowerCase();
+        if (msg.contains('column') && msg.contains('id_vendedor')) {
+          return [];
+        }
+        rethrow;
+      }
+      final List data = raw as List;
+      return data.map<Pedido>((json) {
+        final contacto = json['contacto'];
+        final usuario = json['usuario'];
+        final nombreCliente = contacto != null
+            ? '${contacto['nombre']} ${contacto['apellido']}'
+            : (usuario != null ? '${usuario['nombre']} ${usuario['apellido']}' : 'Cliente');
+        return Pedido.fromJson({
+          ...json,
+          'nombre_cliente': nombreCliente,
+          'nombre_estado': json['estado_pedido']['nombre_estado'],
+        });
+      }).toList();
+    } catch (e) {
+      throw Exception('Error al obtener pedidos del vendedor: $e');
     }
   }
 
@@ -114,7 +185,8 @@ class PedidoService {
           .from('pedido')
           .select('''
             *,
-            usuario:id_cliente (nombre, apellido),
+            usuario:usuario!pedido_id_cliente_fkey (nombre, apellido),
+            contacto:cliente_contacto!pedido_id_cliente_contacto_fkey (nombre, apellido),
             estado_pedido:id_estado (nombre_estado)
           ''')
           .eq('id_pedido', idPedido)
@@ -136,9 +208,15 @@ class PedidoService {
         });
       }).toList();
 
+      final contacto = pedidoResponse['contacto'];
+      final usuario = pedidoResponse['usuario'];
+      final nombreCliente = contacto != null
+          ? '${contacto['nombre']} ${contacto['apellido']}'
+          : (usuario != null ? '${usuario['nombre']} ${usuario['apellido']}' : 'Cliente');
+
       return Pedido.fromJson({
         ...pedidoResponse,
-        'nombre_cliente': '${pedidoResponse['usuario']['nombre']} ${pedidoResponse['usuario']['apellido']}',
+        'nombre_cliente': nombreCliente,
         'nombre_estado': pedidoResponse['estado_pedido']['nombre_estado'],
         'detalles': detalles.map((d) => d.toJson()).toList(),
       });
@@ -155,6 +233,11 @@ class PedidoService {
           .eq('id_pedido', idPedido)
           .select()
           .single();
+
+      await _client.from('pedido_historial').insert({
+        'id_pedido': idPedido,
+        'id_estado': nuevoEstado,
+      });
 
       return await obtenerPedidoPorId(idPedido) ?? 
           Pedido.fromJson(response);
@@ -211,6 +294,27 @@ class PedidoService {
       await actualizarEstadoPedido(idPedido, EstadoPedidoConstants.cancelado);
     } catch (e) {
       rethrow;
+    }
+  }
+
+  Future<List<PedidoHistorial>> obtenerHistorialPedido(int idPedido) async {
+    try {
+      final response = await _client
+          .from('pedido_historial')
+          .select('''
+            *,
+            estado_pedido:id_estado (nombre_estado)
+          ''')
+          .eq('id_pedido', idPedido)
+          .order('fecha', ascending: true);
+      return (response as List).map((json) {
+        return PedidoHistorial.fromJson({
+          ...json,
+          'nombre_estado': json['estado_pedido']['nombre_estado'],
+        });
+      }).toList();
+    } catch (e) {
+      throw Exception('Error al obtener historial: $e');
     }
   }
 

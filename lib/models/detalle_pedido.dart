@@ -36,6 +36,8 @@ class DetallePedido {
       'id_producto': idProducto,
       'cantidad': cantidad,
       'precio_unitario': precioUnitario,
+      if (nombreProducto != null) 'nombre_producto': nombreProducto,
+      if (skuProducto != null) 'sku_producto': skuProducto,
     };
   }
 

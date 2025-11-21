@@ -169,7 +169,11 @@ class TiendaController extends StateNotifier<TiendaState> {
   }
 
   Future<void> filtrarPorCategoria(String? categoria) async {
-    state = state.copyWith(isLoading: true, categoriaSeleccionada: categoria);
+    state = state.copyWith(
+      isLoading: true,
+      categoriaSeleccionada: categoria,
+      mostrarTodosLosProductos: true, // ir a vista de todos al filtrar
+    );
     try {
       final productos = categoria == null
           ? await _clienteService.obtenerProductosTienda()
@@ -209,7 +213,7 @@ class TiendaController extends StateNotifier<TiendaState> {
   }
 
   void mostrarTodosLosProductos() {
-    state = state.copyWith(mostrarTodosLosProductos: true);
+    state = state.copyWith(mostrarTodosLosProductos: true, categoriaSeleccionada: null);
     cargarProductos(); // Cargar todos los productos
   }
 
@@ -317,6 +321,44 @@ class CarritoController extends StateNotifier<CarritoState> {
         idCliente: idCliente,
         items: itemsPedido,
         total: state.total,
+      );
+
+      state = state.copyWith(items: [], isLoading: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> procesarPedidoAvanzado({
+    required int idCliente,
+    required String tipoEntrega, // 'envio' | 'retiro'
+    String? direccionEnvio,
+    required String metodoPago, // 'tarjeta' | 'transferencia' | 'efectivo'
+    String? pagoReferencia,
+  }) async {
+    if (state.items.isEmpty) return false;
+
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final itemsPedido = state.items.map((item) => {
+        'id_producto': item.producto.idProducto!,
+        'cantidad': item.cantidad,
+        'precio_unitario': item.producto.precio,
+      }).toList();
+
+      await _clienteService.crearPedidoAvanzado(
+        idCliente: idCliente,
+        items: itemsPedido,
+        total: state.total,
+        tipoEntrega: tipoEntrega,
+        direccionEnvio: direccionEnvio,
+        metodoPago: metodoPago,
+        pagoReferencia: pagoReferencia,
       );
 
       state = state.copyWith(items: [], isLoading: false);

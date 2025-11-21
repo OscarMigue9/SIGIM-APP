@@ -4,7 +4,8 @@ import '../../controllers/usuario_controller.dart';
 import '../../models/usuario.dart';
 
 class GestionUsuariosScreen extends ConsumerStatefulWidget {
-  const GestionUsuariosScreen({super.key});
+  final bool autoOpenCreate;
+  const GestionUsuariosScreen({super.key, this.autoOpenCreate = false});
 
   @override
   ConsumerState<GestionUsuariosScreen> createState() => _GestionUsuariosScreenState();
@@ -12,12 +13,17 @@ class GestionUsuariosScreen extends ConsumerStatefulWidget {
 
 class _GestionUsuariosScreenState extends ConsumerState<GestionUsuariosScreen> {
   final TextEditingController _searchController = TextEditingController();
+  int? _rolFiltro;
   
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(usuarioControllerProvider.notifier).cargarUsuarios();
+      if (widget.autoOpenCreate) {
+        // Abrir diálogo de creación automáticamente después de cargar
+        _mostrarDialogoUsuario(context);
+      }
     });
   }
 
@@ -75,7 +81,35 @@ class _GestionUsuariosScreenState extends ConsumerState<GestionUsuariosScreen> {
                     ref.read(usuarioControllerProvider.notifier).buscarUsuarios(value);
                   },
                 ),
-                
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('Todos'),
+                        selected: _rolFiltro == null,
+                        onSelected: (_) => setState(() => _rolFiltro = null),
+                      ),
+                      ChoiceChip(
+                        label: const Text('Admins'),
+                        selected: _rolFiltro == 1,
+                        onSelected: (_) => setState(() => _rolFiltro = 1),
+                      ),
+                      ChoiceChip(
+                        label: const Text('Vendedores'),
+                        selected: _rolFiltro == 2,
+                        onSelected: (_) => setState(() => _rolFiltro = 2),
+                      ),
+                      ChoiceChip(
+                        label: const Text('Clientes'),
+                        selected: _rolFiltro == 3,
+                        onSelected: (_) => setState(() => _rolFiltro = 3),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 
                 // Estadísticas
@@ -160,6 +194,11 @@ class _GestionUsuariosScreenState extends ConsumerState<GestionUsuariosScreen> {
     );
   }
 
+  List<Usuario> _filtrarUsuarios(UsuarioState state) {
+    if (_rolFiltro == null) return state.usuarios;
+    return state.usuarios.where((u) => u.idRol == _rolFiltro).toList();
+  }
+
   Widget _buildUsuariosList(UsuarioState state) {
     if (state.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -187,14 +226,17 @@ class _GestionUsuariosScreenState extends ConsumerState<GestionUsuariosScreen> {
       );
     }
 
-    if (state.usuarios.isEmpty) {
-      return const Center(
+    final usuarios = _filtrarUsuarios(state);
+
+    if (usuarios.isEmpty) {
+      final tieneFiltro = _rolFiltro != null || _searchController.text.isNotEmpty;
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('No hay usuarios registrados'),
+            const Icon(Icons.people_outline, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(tieneFiltro ? 'Sin resultados para estos filtros' : 'No hay usuarios registrados'),
           ],
         ),
       );
@@ -202,9 +244,9 @@ class _GestionUsuariosScreenState extends ConsumerState<GestionUsuariosScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: state.usuarios.length,
+      itemCount: usuarios.length,
       itemBuilder: (context, index) {
-        final usuario = state.usuarios[index];
+        final usuario = usuarios[index];
         return _buildUsuarioCard(usuario);
       },
     );
@@ -232,7 +274,7 @@ class _GestionUsuariosScreenState extends ConsumerState<GestionUsuariosScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: rolColor.withOpacity(0.1),
+          backgroundColor: rolColor.withValues(alpha: 0.1),
           child: Icon(rolIcon, color: rolColor),
         ),
         title: Text('${usuario.nombre} ${usuario.apellido}'),
@@ -319,6 +361,8 @@ class _GestionUsuariosScreenState extends ConsumerState<GestionUsuariosScreen> {
   }
 
   void _mostrarDialogoEliminar(BuildContext context, Usuario usuario) {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -331,20 +375,19 @@ class _GestionUsuariosScreenState extends ConsumerState<GestionUsuariosScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
+              navigator.pop();
               final success = await ref.read(usuarioControllerProvider.notifier)
                   .eliminarUsuario(usuario.idUsuario!);
               
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(success 
-                        ? 'Usuario eliminado exitosamente'
-                        : 'Error al eliminar usuario'),
-                    backgroundColor: success ? Colors.green : Colors.red,
-                  ),
-                );
-              }
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(success 
+                      ? 'Usuario eliminado exitosamente'
+                      : 'Error al eliminar usuario'),
+                  backgroundColor: success ? Colors.green : Colors.red,
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
@@ -368,6 +411,7 @@ class _UsuarioDialogState extends ConsumerState<_UsuarioDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _apellidoController = TextEditingController();
+  final _emailController = TextEditingController();
   final _contrasenaController = TextEditingController();
   int _selectedRolId = 3; // Cliente por defecto
 
@@ -377,6 +421,7 @@ class _UsuarioDialogState extends ConsumerState<_UsuarioDialog> {
     if (widget.usuario != null) {
       _nombreController.text = widget.usuario!.nombre;
       _apellidoController.text = widget.usuario!.apellido;
+      _emailController.text = widget.usuario!.email ?? '';
       _selectedRolId = widget.usuario!.idRol;
     }
   }
@@ -385,6 +430,7 @@ class _UsuarioDialogState extends ConsumerState<_UsuarioDialog> {
   void dispose() {
     _nombreController.dispose();
     _apellidoController.dispose();
+    _emailController.dispose();
     _contrasenaController.dispose();
     super.dispose();
   }
@@ -431,6 +477,21 @@ class _UsuarioDialogState extends ConsumerState<_UsuarioDialog> {
             if (!isEditing) ...[
               const SizedBox(height: 16),
               TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Correo electrónico',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  final v = (value ?? '').trim();
+                  if (v.isEmpty) return 'El correo es requerido';
+                  if (!v.contains('@')) return 'Correo inválido';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
                 controller: _contrasenaController,
                 decoration: const InputDecoration(
                   labelText: 'Contraseña',
@@ -450,7 +511,7 @@ class _UsuarioDialogState extends ConsumerState<_UsuarioDialog> {
             ],
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: _selectedRolId,
+              initialValue: _selectedRolId,
               decoration: const InputDecoration(
                 labelText: 'Rol',
                 border: OutlineInputBorder(),
@@ -498,6 +559,9 @@ class _UsuarioDialogState extends ConsumerState<_UsuarioDialog> {
       idUsuario: widget.usuario?.idUsuario,
       nombre: _nombreController.text.trim(),
       apellido: _apellidoController.text.trim(),
+      email: widget.usuario != null
+          ? (widget.usuario!.email ?? '')
+          : _emailController.text.trim().toLowerCase(),
       contrasena: widget.usuario != null ? widget.usuario!.contrasena : _contrasenaController.text,
       idRol: _selectedRolId,
     );

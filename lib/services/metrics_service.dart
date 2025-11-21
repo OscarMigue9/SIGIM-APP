@@ -56,11 +56,18 @@ class MetricsService {
       
       // Pedidos de hoy del vendedor (asumiendo que hay un campo id_vendedor en pedido)
       // Si no existe, usaremos todos los pedidos de hoy
-      final pedidosHoyResponse = await _client
+      dynamic pedidosQuery = _client
           .from('pedido')
           .select('id_pedido, total')
           .gte('fecha_creacion', '${hoy}T00:00:00')
           .lte('fecha_creacion', '${hoy}T23:59:59');
+      try {
+        // Intentar filtrar por id_vendedor (si la columna existe)
+        pedidosQuery = pedidosQuery.eq('id_vendedor', idVendedor);
+      } catch (_) {
+        // Ignorar si falla por columna inexistente
+      }
+      final pedidosHoyResponse = await pedidosQuery;
       
       double ventasHoy = 0;
       for (final pedido in pedidosHoyResponse) {
@@ -99,9 +106,10 @@ class MetricsService {
       }
 
       // Últimos pedidos
-      final pedidosRecientes = await _client
+        // Desambiguar relación usuario ahora que existe id_vendedor e id_cliente
+        final pedidosRecientes = await _client
           .from('pedido')
-          .select('id_pedido, total, fecha_creacion, usuario!inner(nombre, apellido)')
+          .select('id_pedido, total, fecha_creacion, usuario:usuario!pedido_id_cliente_fkey (nombre, apellido)')
           .order('fecha_creacion', ascending: false)
           .limit(3);
 
@@ -152,7 +160,7 @@ class MetricsService {
             id_pedido, 
             total, 
             fecha_creacion,
-            usuario!inner(nombre, apellido),
+            usuario:usuario!pedido_id_cliente_fkey (nombre, apellido),
             detalle_pedido(cantidad)
           ''')
           .order('fecha_creacion', ascending: false)
@@ -175,48 +183,224 @@ class MetricsService {
     }
   }
 
-  // Obtener productos más vendidos
-  Future<List<Map<String, dynamic>>> getTopProducts({int limit = 5}) async {
+  Future<List<Map<String, dynamic>>> getRecentSalesVendedor(int idVendedor, {int limit = 5}) async {
     try {
-      final response = await _client
-          .rpc('get_productos_mas_vendidos', params: {'limite': limit});
-      
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      // Si no existe la función RPC, calcular manualmente
+      dynamic query = _client
+          .from('pedido')
+          .select('''
+            id_pedido,
+            total,
+            fecha_creacion,
+            usuario:usuario!pedido_id_cliente_fkey (nombre, apellido),
+            detalle_pedido(cantidad)
+          ''');
       try {
-        final ventasProductos = await _client
-            .from('detalle_pedido')
-            .select('''
-              cantidad,
-              producto!inner(nombre, precio)
-            ''');
-
-        Map<String, Map<String, dynamic>> productosVentas = {};
-        
-        for (final detalle in ventasProductos) {
-          final producto = detalle['producto'];
-          final nombreProducto = producto['nombre'];
-          final cantidad = detalle['cantidad'] as int;
-          
-          if (productosVentas.containsKey(nombreProducto)) {
-            productosVentas[nombreProducto]!['totalVendido'] += cantidad;
-          } else {
-            productosVentas[nombreProducto] = {
-              'nombre': nombreProducto,
-              'precio': producto['precio'],
-              'totalVendido': cantidad,
-            };
-          }
-        }
-
-        final sortedProducts = productosVentas.values.toList()
-          ..sort((a, b) => (b['totalVendido'] as int).compareTo(a['totalVendido'] as int));
-
-        return sortedProducts.take(limit).toList();
-      } catch (e2) {
-        throw Exception('Error al obtener productos más vendidos: $e2');
+        // Aplica el filtro primero, luego ordena/limita
+        query = query.eq('id_vendedor', idVendedor).order('fecha_creacion', ascending: false).limit(limit);
+      } catch (_) {
+        // Si la columna no existe, devolvemos lista vacía para evitar confusión
+        // Fallback: usar ventas recientes sin filtrar
+        return getRecentSales(limit: limit);
       }
+      final ventasRecientes = await query;
+      // Fallback: si no hay resultados (p.ej. pedidos sin id_vendedor), usar ventas recientes generales
+      if (ventasRecientes is List && ventasRecientes.isEmpty) {
+        return getRecentSales(limit: limit);
+      }
+      return ventasRecientes.map<Map<String, dynamic>>((venta) {
+        final usuario = venta['usuario'];
+        final detalles = venta['detalle_pedido'] as List;
+        final totalProductos = detalles.fold<int>(0, (sum, detalle) => sum + (detalle['cantidad'] as int));
+        return {
+          'nombreCliente': '${usuario['nombre']} ${usuario['apellido']}',
+          'total': venta['total'],
+          'productos': '$totalProductos productos',
+          'fecha': venta['fecha_creacion'],
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('Error al obtener ventas del vendedor: $e');
+    }
+  }
+
+  // Obtener productos más vendidos
+  Future<List<Map<String, dynamic>>> getTopProducts({int limit = 5, DateTime? inicio, DateTime? fin}) async {
+    try {
+      // Intentar RPC si no hay filtros de fecha
+      if (inicio == null && fin == null) {
+        final response = await _client
+            .rpc('get_productos_mas_vendidos', params: {'limite': limit});
+        return List<Map<String, dynamic>>.from(response);
+      }
+    } catch (_) {
+      // Ignorar error de RPC y pasar a cálculo manual
+    }
+
+    try {
+      // Si hay rango, primero obtener pedidos dentro de rango para limitar detalles
+      List<int>? pedidosIds;
+      if (inicio != null || fin != null) {
+        var pedidosQuery = _client.from('pedido').select('id_pedido, fecha_creacion');
+        if (inicio != null) {
+          pedidosQuery = pedidosQuery.gte('fecha_creacion', inicio.toIso8601String());
+        }
+        if (fin != null) {
+          pedidosQuery = pedidosQuery.lte('fecha_creacion', fin.toIso8601String());
+        }
+        final pedidosResponse = await pedidosQuery;
+        pedidosIds = pedidosResponse.map<int>((p) => p['id_pedido'] as int).toList();
+        if (pedidosIds.isEmpty) return [];
+      }
+
+      var detallesQuery = _client
+          .from('detalle_pedido')
+          .select('''
+            cantidad,
+            id_pedido,
+            producto!inner(nombre, precio)
+          ''');
+
+      if (pedidosIds != null) {
+        detallesQuery = detallesQuery.inFilter('id_pedido', pedidosIds);
+      }
+
+      final ventasProductos = await detallesQuery;
+
+      Map<String, Map<String, dynamic>> productosVentas = {};
+      for (final detalle in ventasProductos) {
+        final producto = detalle['producto'];
+        final nombreProducto = producto['nombre'];
+        final cantidad = detalle['cantidad'] as int;
+        final precio = (producto['precio'] as num?)?.toDouble() ?? 0.0;
+
+        if (productosVentas.containsKey(nombreProducto)) {
+          productosVentas[nombreProducto]!['totalVendido'] += cantidad;
+        } else {
+          productosVentas[nombreProducto] = {
+            'nombre': nombreProducto,
+            'precio': precio,
+            'totalVendido': cantidad,
+          };
+        }
+      }
+
+      final sortedProducts = productosVentas.values.toList()
+        ..sort((a, b) => (b['totalVendido'] as int).compareTo(a['totalVendido'] as int));
+
+      return sortedProducts.take(limit).toList();
+    } catch (e) {
+      throw Exception('Error al obtener productos más vendidos: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getVentasPorDia({DateTime? inicio, DateTime? fin}) async {
+    try {
+      var query = _client.from('pedido').select('fecha_creacion,total');
+      if (inicio != null) {
+        query = query.gte('fecha_creacion', inicio.toIso8601String());
+      }
+      if (fin != null) {
+        // Ajustar fin al final del día si viene sin hora
+        final finAjustado = fin.hour == 0 && fin.minute == 0
+            ? fin.add(const Duration(hours: 23, minutes: 59, seconds: 59))
+            : fin;
+        query = query.lte('fecha_creacion', finAjustado.toIso8601String());
+      }
+      final pedidos = await query;
+
+      final Map<DateTime, double> acumulado = {};
+      for (final p in pedidos) {
+        final fecha = DateTime.parse(p['fecha_creacion']);
+        final dia = DateTime(fecha.year, fecha.month, fecha.day);
+        final total = (p['total'] as num?)?.toDouble() ?? 0.0;
+        acumulado[dia] = (acumulado[dia] ?? 0) + total;
+      }
+
+      final diasOrdenados = acumulado.keys.toList()..sort();
+      return diasOrdenados.map((d) => {
+            'fecha': d,
+            'total': acumulado[d]!.toDouble(),
+          }).toList();
+    } catch (e) {
+      throw Exception('Error al obtener ventas por día: $e');
+    }
+  }
+
+  // Ingresos por categoría (para pie chart)
+  Future<List<Map<String, dynamic>>> getIngresosPorCategoria({DateTime? inicio, DateTime? fin}) async {
+    try {
+      // Limitar por pedidos del rango si aplica
+      List<int>? pedidosIds;
+      if (inicio != null || fin != null) {
+        var pedidosQuery = _client.from('pedido').select('id_pedido, fecha_creacion');
+        if (inicio != null) pedidosQuery = pedidosQuery.gte('fecha_creacion', inicio.toIso8601String());
+        if (fin != null) {
+          final finAdj = fin.hour == 0 && fin.minute == 0
+              ? fin.add(const Duration(hours: 23, minutes: 59, seconds: 59))
+              : fin;
+          pedidosQuery = pedidosQuery.lte('fecha_creacion', finAdj.toIso8601String());
+        }
+        final pedidos = await pedidosQuery;
+        pedidosIds = pedidos.map<int>((p) => p['id_pedido'] as int).toList();
+        if (pedidosIds.isEmpty) return [];
+      }
+
+      var detallesQuery = _client
+          .from('detalle_pedido')
+          .select('''
+            cantidad,
+            id_pedido,
+            producto!inner(nombre, precio, categoria)
+          ''');
+      if (pedidosIds != null) {
+        detallesQuery = detallesQuery.inFilter('id_pedido', pedidosIds);
+      }
+      final detalles = await detallesQuery;
+
+      final Map<String, double> ingresosPorCat = {};
+      for (final d in detalles) {
+        final cat = (d['producto']['categoria'] as String?) ?? 'Sin categoría';
+        final precio = (d['producto']['precio'] as num?)?.toDouble() ?? 0;
+        final cant = (d['cantidad'] as num?)?.toDouble() ?? 0;
+        ingresosPorCat[cat] = (ingresosPorCat[cat] ?? 0) + (precio * cant);
+      }
+
+      return ingresosPorCat.entries
+          .map((e) => {'categoria': e.key, 'ingresos': e.value})
+          .toList()
+        ..sort((a, b) => (b['ingresos'] as double).compareTo(a['ingresos'] as double));
+    } catch (e) {
+      throw Exception('Error al obtener ingresos por categoría: $e');
+    }
+  }
+
+  // Pedidos por estado (para donut)
+  Future<List<Map<String, dynamic>>> getPedidosPorEstado({DateTime? inicio, DateTime? fin}) async {
+    try {
+      var query = _client
+          .from('pedido')
+          .select('id_estado, fecha_creacion, estado_pedido!inner(nombre_estado)');
+      if (inicio != null) query = query.gte('fecha_creacion', inicio.toIso8601String());
+      if (fin != null) {
+        final finAdj = fin.hour == 0 && fin.minute == 0
+            ? fin.add(const Duration(hours: 23, minutes: 59, seconds: 59))
+            : fin;
+        query = query.lte('fecha_creacion', finAdj.toIso8601String());
+      }
+      final pedidos = await query;
+
+      final Map<String, int> conteo = {};
+      for (final p in pedidos) {
+        final nombre = (p['estado_pedido']?['nombre_estado'] as String?) ?? 'Desconocido';
+        conteo[nombre] = (conteo[nombre] ?? 0) + 1;
+      }
+
+      return conteo.entries
+          .map((e) => {'estado': e.key, 'cantidad': e.value})
+          .toList()
+        ..sort((a, b) => (b['cantidad'] as int).compareTo(a['cantidad'] as int));
+    } catch (e) {
+      throw Exception('Error al obtener pedidos por estado: $e');
     }
   }
 }

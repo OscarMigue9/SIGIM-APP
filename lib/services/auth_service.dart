@@ -2,95 +2,162 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/usuario.dart';
 import '../models/rol.dart';
 import 'supabase_service.dart';
+import '../utils/password_utils.dart';
 
 class AuthService {
   final SupabaseClient _client = SupabaseService.instance.client;
 
-  // Login usando tu esquema (sin email, solo usuario/contraseña)
-  Future<Usuario?> login(String nombreUsuario, String password) async {
-    try {
-      // Buscar usuario por nombre/apellido y validar contraseña
-      final userData = await _client
-          .from('usuario')
-          .select('''
-            *,
-            rol:id_rol (
-              id_rol,
-              nombre_rol
-            )
-          ''')
-          .or('nombre.ilike.%$nombreUsuario%,apellido.ilike.%$nombreUsuario%')
-          .eq('contrasena', password)
-          .maybeSingle();
+  static Usuario? _currentUser;
 
-      if (userData != null) {
-        // Crear sesión simulada (ya que no usamos Supabase Auth)
-        return Usuario.fromJson({
-          ...userData,
-          'nombre_rol': userData['rol']['nombre_rol'],
-        });
+  Future<Usuario?> _fetchUsuarioPorEmail(String email) async {
+    final row = await _client
+        .from('usuario')
+        .select('''
+          *,
+          rol:id_rol (
+            id_rol,
+            nombre_rol
+          )
+        ''')
+        .eq('email', email)
+        .maybeSingle();
+    if (row == null) return null;
+    return Usuario.fromJson({...row, 'nombre_rol': row['rol']['nombre_rol']});
+  }
+
+  Future<Usuario?> login(String email, String password) async {
+    try {
+      final res = await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      final authUser = res.user;
+      if (authUser == null) {
+        final legacy = await _legacyLogin(email, password);
+        if (legacy != null) {
+          _currentUser = legacy;
+          return legacy;
+        }
+        return null;
       }
-      return null;
+      final usuario = await _fetchUsuarioPorEmail(authUser.email ?? email);
+      _currentUser = usuario;
+      return usuario;
+    } on AuthException catch (authError) {
+      final legacy = await _legacyLogin(email, password);
+      if (legacy != null) {
+        _currentUser = legacy;
+        return legacy;
+      }
+      throw Exception(authError.message);
     } catch (e) {
-      throw Exception('Error al iniciar sesión: $e');
+      throw Exception('Error autenticando: $e');
     }
   }
 
-  // Registro usando tu esquema (sin email)
+  Future<Usuario?> _legacyLogin(String email, String password) async {
+    final usuario = await _fetchUsuarioPorEmail(email);
+    if (usuario == null) return null;
+
+    final stored = usuario.contrasena;
+    if (stored == null || !PasswordUtils.verify(password, stored)) {
+      return null;
+    }
+
+    try {
+      await _client.auth.signUp(email: email, password: password);
+    } on AuthException catch (e) {
+      final alreadyRegistered = e.message.toLowerCase().contains('registered');
+      if (!alreadyRegistered) rethrow;
+    }
+
+    try {
+      await _client.auth.signInWithPassword(email: email, password: password);
+    } catch (_) {
+      // Ignorar: si la sesión ya está activa, esta llamada puede fallar.
+    }
+
+    return usuario;
+  }
+
   Future<Usuario?> register({
     required String nombre,
     required String apellido,
+    required String email,
     required String password,
     int? idRol,
   }) async {
     try {
-      // Verificar si es el primer usuario (será admin automáticamente)
-      final existingUsers = await _client.from('usuario').select('id_usuario').limit(1);
-      final finalIdRol = idRol ?? (existingUsers.isEmpty ? RolConstants.administrador : RolConstants.cliente);
-      
-      // Crear usuario directamente en tu tabla
-      final userData = await _client.from('usuario').insert({
+      final policyError = PasswordUtils.validate(password);
+      if (policyError != null) throw Exception(policyError);
+
+      // Crear cuenta en Supabase Auth
+      await _client.auth.signUp(email: email, password: password);
+
+      // Determinar rol (primero admin, resto cliente por defecto)
+      final first = await _client.from('usuario').select('id_usuario').limit(1);
+      final finalRol =
+          idRol ??
+          (first.isEmpty ? RolConstants.administrador : RolConstants.cliente);
+      final hashed = PasswordUtils.hash(password);
+
+      final existing = await _client
+          .from('usuario')
+          .select('id_usuario, id_rol')
+          .eq('email', email)
+          .maybeSingle();
+
+      final payload = {
         'nombre': nombre,
         'apellido': apellido,
-        'contrasena': password,
-        'id_rol': finalIdRol,
-      }).select('''
-        *,
-        rol:id_rol (
-          id_rol,
-          nombre_rol
-        )
-      ''').single();
+        'email': email,
+        'contrasena': hashed,
+        'id_rol': finalRol,
+      };
 
-      return Usuario.fromJson({
-        ...userData,
-        'nombre_rol': userData['rol']['nombre_rol'],
+      final row = existing != null
+          ? await _client
+                .from('usuario')
+                .update(payload)
+                .eq('id_usuario', existing['id_usuario'])
+                .select('''
+                *,
+                rol:id_rol (
+                  id_rol,
+                  nombre_rol
+                )
+              ''')
+                .single()
+          : await _client.from('usuario').insert(payload).select('''
+                *,
+                rol:id_rol (
+                  id_rol,
+                  nombre_rol
+                )
+              ''').single();
+
+      final usuario = Usuario.fromJson({
+        ...row,
+        'nombre_rol': row['rol']['nombre_rol'],
       });
+      _currentUser = usuario;
+      return usuario;
     } catch (e) {
-      throw Exception('Error al registrarse: $e');
+      throw Exception('Error registro: $e');
     }
   }
 
-  // Variables para mantener sesión local (sin Supabase Auth)
-  static Usuario? _currentUser;
-  
   Future<Usuario?> getCurrentUserData() async {
+    if (_currentUser != null) return _currentUser;
+    final authUser = _client.auth.currentUser;
+    if (authUser?.email == null) return null;
+    _currentUser = await _fetchUsuarioPorEmail(authUser!.email!);
     return _currentUser;
   }
 
   Future<void> logout() async {
-    try {
-      // Cerrar sesión de Supabase si existe
-      if (_client.auth.currentSession != null) {
-        await _client.auth.signOut();
-      }
-    } catch (e) {
-      // Ignorar errores ya que limpiaremos la sesión local de todos modos
-      print('Error al cerrar sesión de Supabase: $e');
-    } finally {
-      // Siempre limpiar la sesión local
-      _currentUser = null;
-    }
+    _currentUser = null;
+    await _client.auth.signOut();
   }
 
   // Método para establecer usuario actual después del login
@@ -98,12 +165,18 @@ class AuthService {
     _currentUser = usuario;
   }
 
-  // Método para cambiar contraseña (usando tu esquema)
   Future<bool> changePassword(int idUsuario, String newPassword) async {
     try {
+      final policyError = PasswordUtils.validate(newPassword);
+      if (policyError != null) throw Exception(policyError);
+
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
+
+      // Mantener la columna contrasena sincronizada (hash local)
+      final hashed = PasswordUtils.hash(newPassword);
       await _client
           .from('usuario')
-          .update({'contrasena': newPassword})
+          .update({'contrasena': hashed})
           .eq('id_usuario', idUsuario);
       return true;
     } catch (e) {
@@ -124,8 +197,10 @@ class AuthService {
     }
   }
 
-  // Método para obtener usuarios (solo para admin)
   Future<List<Usuario>> getAllUsers() async {
+    if (_currentUser == null || !_currentUser!.esAdministrador) {
+      throw Exception('Acceso denegado');
+    }
     try {
       final response = await _client
           .from('usuario')

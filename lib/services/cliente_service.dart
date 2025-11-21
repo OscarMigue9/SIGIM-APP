@@ -188,6 +188,103 @@ class ClienteService {
     }
   }
 
+  // Crear pedido con datos de checkout avanzados (entrega y pago)
+  Future<Pedido> crearPedidoAvanzado({
+    required int idCliente,
+    required List<Map<String, dynamic>> items,
+    required double total,
+    required String tipoEntrega, // 'envio' | 'retiro'
+    String? direccionEnvio,
+    required String metodoPago, // 'tarjeta' | 'transferencia' | 'efectivo'
+    String? pagoReferencia,
+  }) async {
+    try {
+      // Verificar stock
+      for (final item in items) {
+        final producto = await _client
+            .from('producto')
+            .select('stock')
+            .eq('id_producto', item['id_producto'])
+            .single();
+        if (producto['stock'] < item['cantidad']) {
+          throw Exception('Stock insuficiente para el producto ${item['id_producto']}');
+        }
+      }
+
+      Map<String, dynamic> pedidoInsert = {
+        'id_cliente': idCliente,
+        'fecha_creacion': DateTime.now().toIso8601String(),
+        'id_estado': 1,
+        'total': total,
+      };
+
+      // Intentar columnas avanzadas; si no existen, fallback luego
+      pedidoInsert['tipo_entrega'] = tipoEntrega; // requiere ALTER TABLE
+      if (direccionEnvio != null) pedidoInsert['direccion_envio'] = direccionEnvio;
+      pedidoInsert['metodo_pago'] = metodoPago;
+      if (pagoReferencia != null) pedidoInsert['pago_referencia'] = pagoReferencia;
+
+      dynamic pedidoResponse;
+      try {
+        pedidoResponse = await _client.from('pedido').insert(pedidoInsert).select().single();
+      } catch (_) {
+        // Fallback: crear sin columnas extra
+        pedidoResponse = await _client
+            .from('pedido')
+            .insert({
+              'id_cliente': idCliente,
+              'fecha_creacion': DateTime.now().toIso8601String(),
+              'id_estado': 1,
+              'total': total,
+            })
+            .select()
+            .single();
+      }
+
+      final idPedido = pedidoResponse['id_pedido'];
+
+      // Insertar detalles
+      final detalles = items.map((item) => {
+        'id_pedido': idPedido,
+        'id_producto': item['id_producto'],
+        'cantidad': item['cantidad'],
+        'precio_unitario': item['precio_unitario'],
+      }).toList();
+      await _client.from('detalle_pedido').insert(detalles);
+
+      // Actualizar stock
+      for (final item in items) {
+        await _client
+            .from('producto')
+            .update({
+              'stock': await _client
+                  .from('producto')
+                  .select('stock')
+                  .eq('id_producto', item['id_producto'])
+                  .single()
+                  .then((r) => r['stock'] - item['cantidad'])
+            })
+            .eq('id_producto', item['id_producto']);
+      }
+
+      final pedidoCompleto = await _client
+          .from('pedido')
+          .select('''
+            *,
+            estado_pedido!inner(nombre_estado)
+          ''')
+          .eq('id_pedido', idPedido)
+          .single();
+
+      return Pedido.fromJson({
+        ...pedidoCompleto,
+        'nombre_estado': pedidoCompleto['estado_pedido']['nombre_estado'],
+      });
+    } catch (e) {
+      throw Exception('Error al crear pedido (checkout): $e');
+    }
+  }
+
   // Obtener detalles de un producto específico
   Future<Producto?> obtenerProductoPorId(int idProducto) async {
     try {

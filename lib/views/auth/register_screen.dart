@@ -13,6 +13,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _apellidoController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
@@ -22,8 +23,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void dispose() {
     _nombreController.dispose();
     _apellidoController.dispose();
-    _passwordController.dispose();
+  _passwordController.dispose();
     _confirmPasswordController.dispose();
+  _emailController.dispose();
     super.dispose();
   }
 
@@ -99,6 +101,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Por favor ingresa tu apellido';
                     }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Campo de email
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Correo electrónico',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    final v = (value ?? '').trim();
+                    if (v.isEmpty) {
+                      return 'Ingresa tu correo';
+                    }
+                    // Validador más permisivo en desarrollo: solo verificar que contenga '@'
+                    if (!v.contains('@')) return 'Correo inválido';
                     return null;
                   },
                 ),
@@ -231,6 +254,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final success = await ref.read(authControllerProvider.notifier).register(
       nombre: _nombreController.text.trim(),
       apellido: _apellidoController.text.trim(),
+      email: _emailController.text.trim().toLowerCase(),
       password: _passwordController.text,
     );
 

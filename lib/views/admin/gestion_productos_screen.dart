@@ -4,21 +4,27 @@ import '../../controllers/producto_controller.dart';
 import '../../models/producto.dart';
 
 class GestionProductosScreen extends ConsumerStatefulWidget {
-  const GestionProductosScreen({super.key});
+  final bool autoOpenCreate;
+  const GestionProductosScreen({super.key, this.autoOpenCreate = false});
 
   @override
-  ConsumerState<GestionProductosScreen> createState() => _GestionProductosScreenState();
+  ConsumerState<GestionProductosScreen> createState() =>
+      _GestionProductosScreenState();
 }
 
-class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen> {
+class _GestionProductosScreenState
+    extends ConsumerState<GestionProductosScreen> {
   final TextEditingController _searchController = TextEditingController();
   String? _categoriaSeleccionada;
-  
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(productoControllerProvider.notifier).cargarProductos();
+      if (widget.autoOpenCreate) {
+        _mostrarDialogoProducto(context);
+      }
     });
   }
 
@@ -32,7 +38,7 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
   Widget build(BuildContext context) {
     final productoState = ref.watch(productoControllerProvider);
     final categoriasAsyncValue = ref.watch(categoriasProvider);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Productos'),
@@ -48,7 +54,9 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'stock_bajo') {
-                ref.read(productoControllerProvider.notifier).cargarProductosStockBajo();
+                ref
+                    .read(productoControllerProvider.notifier)
+                    .cargarProductosStockBajo();
               } else if (value == 'todos') {
                 ref.read(productoControllerProvider.notifier).cargarProductos();
               }
@@ -80,23 +88,26 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
       ),
       body: Column(
         children: [
-          // Barra de búsqueda y filtros
+          // Barra de b├║squeda y filtros
           Container(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Búsqueda
+                // B├║squeda
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Buscar productos por nombre, SKU o categoría...',
+                    hintText:
+                        'Buscar productos por nombre, SKU o categoría...',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear),
                             onPressed: () {
                               _searchController.clear();
-                              ref.read(productoControllerProvider.notifier).buscarProductos('');
+                              ref
+                                  .read(productoControllerProvider.notifier)
+                                  .buscarProductos('');
                             },
                           )
                         : null,
@@ -105,13 +116,15 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
                     ),
                   ),
                   onChanged: (value) {
-                    ref.read(productoControllerProvider.notifier).buscarProductos(value);
+                    ref
+                        .read(productoControllerProvider.notifier)
+                        .buscarProductos(value);
                   },
                 ),
-                
+
                 const SizedBox(height: 12),
-                
-                // Filtro por categoría
+
+                // Filtro por categor├¡a
                 categoriasAsyncValue.when(
                   data: (categorias) => Container(
                     width: double.infinity,
@@ -130,16 +143,20 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
                           value: null,
                           child: Text('Todas las categorías'),
                         ),
-                        ...categorias.map((categoria) => DropdownMenuItem<String>(
-                          value: categoria,
-                          child: Text(categoria),
-                        )),
+                        ...categorias.map(
+                          (categoria) => DropdownMenuItem<String>(
+                            value: categoria,
+                            child: Text(categoria),
+                          ),
+                        ),
                       ],
                       onChanged: (value) {
                         setState(() {
                           _categoriaSeleccionada = value;
                         });
-                        ref.read(productoControllerProvider.notifier).filtrarPorCategoria(value);
+                        ref
+                            .read(productoControllerProvider.notifier)
+                            .filtrarPorCategoria(value);
                       },
                     ),
                   ),
@@ -149,14 +166,12 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
               ],
             ),
           ),
-          
-          // Estadísticas rápidas
+
+          // Estad├¡sticas r├ípidas
           _buildEstadisticas(productoState),
-          
+
           // Lista de productos
-          Expanded(
-            child: _buildProductosList(productoState),
-          ),
+          Expanded(child: _buildProductosList(productoState)),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -172,7 +187,10 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
     final totalProductos = productos.length;
     final productosConStock = productos.where((p) => p.tieneStock).length;
     final productosStockBajo = productos.where((p) => p.stockBajo).length;
-    final valorInventario = productos.fold<double>(0, (sum, p) => sum + (p.precio * p.stock));
+    final valorInventario = productos.fold<double>(
+      0,
+      (sum, p) => sum + (p.precio * p.stock),
+    );
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -213,7 +231,12 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
     );
   }
 
-  Widget _buildEstadisticaItem(String titulo, String valor, IconData icon, Color color) {
+  Widget _buildEstadisticaItem(
+    String titulo,
+    String valor,
+    IconData icon,
+    Color color,
+  ) {
     return Column(
       children: [
         Icon(icon, color: color, size: 20),
@@ -226,13 +249,7 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
             color: color,
           ),
         ),
-        Text(
-          titulo,
-          style: const TextStyle(
-            fontSize: 10,
-            color: Colors.grey,
-          ),
-        ),
+        Text(titulo, style: const TextStyle(fontSize: 10, color: Colors.grey)),
       ],
     );
   }
@@ -256,7 +273,9 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => ref.read(productoControllerProvider.notifier).cargarProductos(),
+              onPressed: () => ref
+                  .read(productoControllerProvider.notifier)
+                  .cargarProductos(),
               child: const Text('Reintentar'),
             ),
           ],
@@ -288,11 +307,11 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
   }
 
   Widget _buildProductoCard(Producto producto) {
-    final stockColor = producto.stockBajo 
-        ? Colors.red 
-        : producto.tieneStock 
-            ? Colors.green 
-            : Colors.grey;
+    final stockColor = producto.stockBajo
+        ? Colors.red
+        : producto.tieneStock
+        ? Colors.green
+        : Colors.grey;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -301,7 +320,7 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
           width: 50,
           height: 50,
           decoration: BoxDecoration(
-            color: _getCategoriaColor(producto.categoria).withOpacity(0.1),
+            color: _getCategoriaColor(producto.categoria).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
@@ -327,7 +346,9 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
                   'Stock: ${producto.stock}',
                   style: TextStyle(
                     color: stockColor,
-                    fontWeight: producto.stockBajo ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: producto.stockBajo
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -393,21 +414,31 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
 
   Color _getCategoriaColor(String categoria) {
     switch (categoria.toLowerCase()) {
-      case 'muebles': return Colors.brown;
-      case 'decoración': return Colors.pink;
-      case 'cocina': return Colors.orange;
-      case 'dormitorio': return Colors.purple;
-      default: return Colors.blue;
+      case 'muebles':
+        return Colors.brown;
+      case 'decoración':
+        return Colors.pink;
+      case 'cocina':
+        return Colors.orange;
+      case 'dormitorio':
+        return Colors.purple;
+      default:
+        return Colors.blue;
     }
   }
 
   IconData _getCategoriaIcon(String categoria) {
     switch (categoria.toLowerCase()) {
-      case 'muebles': return Icons.chair;
-      case 'decoración': return Icons.palette;
-      case 'cocina': return Icons.kitchen;
-      case 'dormitorio': return Icons.bed;
-      default: return Icons.category;
+      case 'muebles':
+        return Icons.chair;
+      case 'decoración':
+        return Icons.palette;
+      case 'cocina':
+        return Icons.kitchen;
+      case 'dormitorio':
+        return Icons.bed;
+      default:
+        return Icons.category;
     }
   }
 
@@ -450,11 +481,15 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
   }
 
   void _mostrarDialogoEliminar(BuildContext context, Producto producto) {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Eliminar Producto'),
-        content: Text('¿Estás seguro que quieres eliminar "${producto.nombre}"?'),
+        content: Text(
+          '¿Estás seguro que quieres eliminar "${producto.nombre}"?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -462,23 +497,28 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
-              final success = await ref.read(productoControllerProvider.notifier)
+              navigator.pop();
+              final success = await ref
+                  .read(productoControllerProvider.notifier)
                   .eliminarProducto(producto.idProducto!);
-              
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(success 
+
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    success
                         ? 'Producto eliminado exitosamente'
-                        : 'Error al eliminar producto'),
-                    backgroundColor: success ? Colors.green : Colors.red,
+                        : 'Error al eliminar producto',
                   ),
-                );
-              }
+                  backgroundColor: success ? Colors.green : Colors.red,
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -486,10 +526,10 @@ class _GestionProductosScreenState extends ConsumerState<GestionProductosScreen>
   }
 }
 
-// Diálogos auxiliares
+// Di├ílogos auxiliares
 class _ProductoDialog extends ConsumerStatefulWidget {
   final Producto? producto;
-  
+
   const _ProductoDialog({this.producto});
 
   @override
@@ -738,29 +778,38 @@ class _ProductoDialogState extends ConsumerState<_ProductoDialog> {
       sku: _skuController.text.trim(),
       nombre: _nombreController.text.trim(),
       categoria: _categoriaController.text.trim(),
-      dimensiones: _dimensionesController.text.trim().isNotEmpty 
-          ? _dimensionesController.text.trim() : null,
-      material: _materialController.text.trim().isNotEmpty 
-          ? _materialController.text.trim() : null,
-      color: _colorController.text.trim().isNotEmpty 
-          ? _colorController.text.trim() : null,
+      dimensiones: _dimensionesController.text.trim().isNotEmpty
+          ? _dimensionesController.text.trim()
+          : null,
+      material: _materialController.text.trim().isNotEmpty
+          ? _materialController.text.trim()
+          : null,
+      color: _colorController.text.trim().isNotEmpty
+          ? _colorController.text.trim()
+          : null,
       precio: double.parse(_precioController.text),
       costo: double.parse(_costoController.text),
       stock: int.parse(_stockController.text),
     );
 
     final success = widget.producto != null
-        ? await ref.read(productoControllerProvider.notifier).actualizarProducto(producto)
-        : await ref.read(productoControllerProvider.notifier).crearProducto(producto);
+        ? await ref
+              .read(productoControllerProvider.notifier)
+              .actualizarProducto(producto)
+        : await ref
+              .read(productoControllerProvider.notifier)
+              .crearProducto(producto);
 
     if (mounted) {
       if (success) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.producto != null 
-                ? 'Producto actualizado exitosamente'
-                : 'Producto creado exitosamente'),
+            content: Text(
+              widget.producto != null
+                  ? 'Producto actualizado exitosamente'
+                  : 'Producto creado exitosamente',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -779,7 +828,7 @@ class _ProductoDialogState extends ConsumerState<_ProductoDialog> {
 
 class _DetallesProductoDialog extends StatelessWidget {
   final Producto producto;
-  
+
   const _DetallesProductoDialog({required this.producto});
 
   @override
@@ -801,9 +850,15 @@ class _DetallesProductoDialog extends StatelessWidget {
               _buildDetailRow('Color:', producto.color!),
             _buildDetailRow('Precio:', '\$${producto.precio}'),
             _buildDetailRow('Costo:', '\$${producto.costo}'),
-            _buildDetailRow('Margen:', '${(producto.costo != null && producto.costo! > 0) ? (((producto.precio - producto.costo!) / producto.costo!) * 100).toStringAsFixed(1) : '0.0'}%'),
+            _buildDetailRow(
+              'Margen:',
+              '${(producto.costo != null && producto.costo! > 0) ? (((producto.precio - producto.costo!) / producto.costo!) * 100).toStringAsFixed(1) : '0.0'}%',
+            ),
             _buildDetailRow('Stock:', '${producto.stock}'),
-            _buildDetailRow('Estado:', producto.tieneStock ? 'Disponible' : 'Sin Stock'),
+            _buildDetailRow(
+              'Estado:',
+              producto.tieneStock ? 'Disponible' : 'Sin Stock',
+            ),
             if (producto.stockBajo)
               Container(
                 padding: const EdgeInsets.all(8),
@@ -815,7 +870,10 @@ class _DetallesProductoDialog extends StatelessWidget {
                   children: [
                     Icon(Icons.warning, color: Colors.orange),
                     SizedBox(width: 8),
-                    Text('Stock Bajo', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      'Stock Bajo',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ],
                 ),
               ),
@@ -844,9 +902,7 @@ class _DetallesProductoDialog extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-          Expanded(
-            child: Text(value),
-          ),
+          Expanded(child: Text(value)),
         ],
       ),
     );
@@ -855,16 +911,18 @@ class _DetallesProductoDialog extends StatelessWidget {
 
 class _AjustarStockDialog extends ConsumerStatefulWidget {
   final Producto producto;
-  
+
   const _AjustarStockDialog({required this.producto});
 
   @override
-  ConsumerState<_AjustarStockDialog> createState() => _AjustarStockDialogState();
+  ConsumerState<_AjustarStockDialog> createState() =>
+      _AjustarStockDialogState();
 }
 
 class _AjustarStockDialogState extends ConsumerState<_AjustarStockDialog> {
   final _stockController = TextEditingController();
-  
+  final _motivoController = TextEditingController(text: 'Ajuste manual');
+
   @override
   void initState() {
     super.initState();
@@ -874,6 +932,7 @@ class _AjustarStockDialogState extends ConsumerState<_AjustarStockDialog> {
   @override
   void dispose() {
     _stockController.dispose();
+    _motivoController.dispose();
     super.dispose();
   }
 
@@ -895,6 +954,15 @@ class _AjustarStockDialogState extends ConsumerState<_AjustarStockDialog> {
               border: OutlineInputBorder(),
             ),
             keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _motivoController,
+            decoration: const InputDecoration(
+              labelText: 'Motivo del ajuste',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
           ),
         ],
       ),
@@ -923,16 +991,35 @@ class _AjustarStockDialogState extends ConsumerState<_AjustarStockDialog> {
       return;
     }
 
-    final success = await ref.read(productoControllerProvider.notifier)
-        .actualizarStock(widget.producto.idProducto!, nuevoStock);
+    final motivo = _motivoController.text.trim();
+    if (motivo.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El motivo es obligatorio'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final success = await ref
+        .read(productoControllerProvider.notifier)
+        .aplicarAjusteInventario(
+          idProducto: widget.producto.idProducto!,
+          nuevoStock: nuevoStock,
+          motivo: motivo,
+        );
 
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success 
-              ? 'Stock actualizado exitosamente'
-              : 'Error al actualizar stock'),
+          content: Text(
+            success
+                ? 'Ajuste aplicado exitosamente'
+                : (ref.read(productoControllerProvider).error ??
+                      'Error al aplicar ajuste'),
+          ),
           backgroundColor: success ? Colors.green : Colors.red,
         ),
       );

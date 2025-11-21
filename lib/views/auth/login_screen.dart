@@ -15,13 +15,13 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _usuarioController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _usuarioController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -29,7 +29,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
-    
+
     // Escuchar cambios de estado para navegación
     ref.listen(authControllerProvider, (previous, next) {
       if (next.isAuthenticated && next.usuario != null) {
@@ -66,7 +66,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'InventarioApp',
+                      'SIGIM',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -76,29 +76,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 8),
                     Text(
                       'Inicia sesión para continuar',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                     ),
                   ],
                 ),
 
                 const SizedBox(height: 48),
 
-                // Campo de usuario
+                // Campo de email
                 TextFormField(
-                  controller: _usuarioController,
+                  controller: _emailController,
                   decoration: const InputDecoration(
-                    labelText: 'Usuario (nombre o apellido)',
-                    prefixIcon: Icon(Icons.person_outlined),
+                    labelText: 'Correo electrónico',
+                    prefixIcon: Icon(Icons.email_outlined),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor ingresa tu nombre de usuario';
-                    }
-                    return null;
-                  },
+                  keyboardType: TextInputType.emailAddress,
                 ),
 
                 const SizedBox(height: 16),
@@ -123,15 +115,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor ingresa tu contraseña';
-                    }
-                    if (value.length < 6) {
-                      return 'La contraseña debe tener al menos 6 caracteres';
-                    }
-                    return null;
-                  },
                 ),
 
                 const SizedBox(height: 8),
@@ -142,10 +125,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       authState.error!,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontSize: 14,
-                      ),
+                      style: const TextStyle(color: Colors.red, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -161,7 +141,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : const Text('Iniciar Sesión'),
@@ -197,12 +179,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final success = await ref.read(authControllerProvider.notifier).login(
-      _usuarioController.text.trim(),
-      _passwordController.text,
-    );
+    final success = await ref
+        .read(authControllerProvider.notifier)
+        .login(
+          _emailController.text.trim().toLowerCase(),
+          _passwordController.text,
+        );
 
     if (!success) {
       // El error se muestra automáticamente por el estado
@@ -221,10 +203,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       destinationScreen = const ClienteHomeScreen();
     }
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => destinationScreen),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => destinationScreen));
   }
-
-
 }

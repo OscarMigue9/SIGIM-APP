@@ -25,7 +25,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   void _checkAuthAndNavigate() {
     final authState = ref.read(authControllerProvider);
-    
+
     if (authState.isAuthenticated && authState.usuario != null) {
       // Usuario autenticado, navegar según su rol
       _navigateByRole();
@@ -37,9 +37,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   void _navigateByRole() {
     final usuario = ref.read(authControllerProvider).usuario!;
-    
+
     Widget destinationScreen;
-    
+
     if (usuario.esAdministrador) {
       destinationScreen = const AdminHomeScreen();
     } else if (usuario.esVendedor) {
@@ -47,16 +47,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     } else {
       destinationScreen = const ClienteHomeScreen();
     }
-    
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => destinationScreen),
-    );
+
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => destinationScreen));
   }
 
   void _navigateToLogin() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
   @override
@@ -82,38 +82,31 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.inventory,
-                size: 60,
-                color: Colors.blue,
-              ),
+              child: const Icon(Icons.inventory, size: 60, color: Colors.blue),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Título de la aplicación
             const Text(
-              'InventarioApp',
+              'SIGIM',
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Subtítulo
             const Text(
               'Gestión integral de inventarios',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white70,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.white70),
             ),
-            
+
             const SizedBox(height: 48),
-            
+
             // Indicador de carga
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),

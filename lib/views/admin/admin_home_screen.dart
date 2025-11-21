@@ -4,6 +4,12 @@ import '../../controllers/auth_controller.dart';
 import '../../services/metrics_service.dart';
 import 'gestion_usuarios_screen.dart';
 import 'gestion_productos_screen.dart';
+import 'pedidos_screen.dart';
+import 'reportes_screen.dart';
+import 'configuracion_screen.dart';
+import '../config/config_screen.dart';
+import '../../controllers/alertas_controller.dart';
+import '../../widgets/badge_icon.dart';
 
 class AdminHomeScreen extends ConsumerStatefulWidget {
   const AdminHomeScreen({super.key});
@@ -79,6 +85,14 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Configuración',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ConfigScreen()),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _logout,
             tooltip: 'Cerrar Sesión',
@@ -94,21 +108,24 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
     return Drawer(
       child: Column(
         children: [
-          UserAccountsDrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.blue.shade800,
-            ),
-            accountName: const Text('Administrador'),
-            accountEmail: const Text('admin@inventarioapp.com'),
-            currentAccountPicture: const CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Icon(
-                Icons.admin_panel_settings,
-                color: Colors.blue,
-                size: 40,
+          Consumer(builder: (context, ref, _) {
+            final user = ref.watch(currentUserProvider);
+            return UserAccountsDrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.blue.shade800,
               ),
-            ),
-          ),
+              accountName: Text(user?.nombreCompleto ?? 'Administrador'),
+              accountEmail: Text(user?.email ?? '-'),
+              currentAccountPicture: const CircleAvatar(
+                backgroundColor: Colors.white,
+                child: Icon(
+                  Icons.admin_panel_settings,
+                  color: Colors.blue,
+                  size: 40,
+                ),
+              ),
+            );
+          }),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -123,12 +140,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
                   title: 'Gestión de Usuarios',
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const GestionUsuariosScreen(),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const GestionUsuariosScreen()));
                   },
                 ),
                 _buildDrawerItem(
@@ -136,36 +148,30 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
                   title: 'Gestión de Productos',
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const GestionProductosScreen(),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const GestionProductosScreen()));
                   },
                 ),
-                _buildDrawerItem(
-                  icon: Icons.warehouse,
-                  title: 'Inventario',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showSnackBar('Inventario - Próximamente');
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.receipt_long,
-                  title: 'Pedidos',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showSnackBar('Gestión de Pedidos - Próximamente');
-                  },
-                ),
+                Consumer(builder: (context, ref, _) {
+                  final alertas = ref.watch(alertasControllerProvider);
+                  return _buildDrawerItem(
+                    iconWidget: BadgeIcon(
+                      icon: Icons.receipt_long,
+                      badge: alertas.pedidosPendientes,
+                      iconColor: Colors.blue.shade700,
+                    ),
+                    title: 'Pedidos',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const PedidosScreen()));
+                    },
+                  );
+                }),
                 _buildDrawerItem(
                   icon: Icons.bar_chart,
                   title: 'Reportes',
                   onTap: () {
                     Navigator.pop(context);
-                    _showSnackBar('Reportes - Próximamente');
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportesScreen()));
                   },
                 ),
                 const Divider(),
@@ -174,7 +180,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
                   title: 'Configuración',
                   onTap: () {
                     Navigator.pop(context);
-                    _showSnackBar('Configuración - Próximamente');
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfiguracionScreen()));
                   },
                 ),
               ],
@@ -186,12 +192,13 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
   }
 
   Widget _buildDrawerItem({
-    required IconData icon,
+    IconData? icon,
+    Widget? iconWidget,
     required String title,
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: Colors.blue.shade700),
+      leading: iconWidget ?? Icon(icon, color: Colors.blue.shade700),
       title: Text(title),
       onTap: onTap,
       dense: true,
@@ -213,13 +220,9 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Resumen General',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
             _buildMetricsGrid(),
@@ -288,11 +291,11 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.05),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 2),
@@ -322,14 +325,13 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
             ),
           ),
           Text(
             title,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey.shade600,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -341,13 +343,9 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Acciones Rápidas',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         Row(
@@ -357,7 +355,12 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
                 title: 'Nuevo Usuario',
                 icon: Icons.person_add,
                 color: Colors.blue,
-                onTap: () => _showSnackBar('Crear Usuario - Próximamente'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GestionUsuariosScreen(autoOpenCreate: true)),
+                  );
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -366,7 +369,12 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
                 title: 'Nuevo Producto',
                 icon: Icons.add_box,
                 color: Colors.green,
-                onTap: () => _showSnackBar('Crear Producto - Próximamente'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GestionProductosScreen(autoOpenCreate: true)),
+                  );
+                },
               ),
             ),
           ],
@@ -386,9 +394,9 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -412,22 +420,21 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Actividad Reciente',
-          style: TextStyle(
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
           ),
         ),
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.05),
                 spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 2),
@@ -524,7 +531,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(icon, color: color, size: 20),

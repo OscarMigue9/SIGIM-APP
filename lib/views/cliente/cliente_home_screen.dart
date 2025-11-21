@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../controllers/auth_controller.dart';
+import '../../controllers/theme_controller.dart';
 import '../../controllers/cliente_controller.dart';
 import '../../models/producto.dart';
 import '../../models/pedido.dart';
 import 'producto_search_delegate.dart';
+import 'checkout_screen.dart';
+import 'direcciones_screen.dart';
+import 'metodos_pago_screen.dart';
+import '../perfil/perfil_screen.dart';
+import '../info/ayuda_screen.dart';
+import '../info/acerca_screen.dart';
 
 class ClienteHomeScreen extends ConsumerStatefulWidget {
   const ClienteHomeScreen({super.key});
@@ -15,7 +22,7 @@ class ClienteHomeScreen extends ConsumerStatefulWidget {
 
 class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
   int _selectedIndex = 0;
-  
+
   @override
   void initState() {
     super.initState();
@@ -23,18 +30,20 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
       _cargarDatosIniciales();
     });
   }
-  
+
   void _cargarDatosIniciales() {
     // Cargar productos destacados y categorías
     ref.read(tiendaControllerProvider.notifier).cargarDatosIniciales();
-    
+
     // Cargar pedidos del usuario actual si está autenticado
     final usuario = ref.read(authControllerProvider).usuario;
     if (usuario != null) {
-      ref.read(pedidosClienteControllerProvider.notifier).cargarPedidos(usuario.idUsuario!);
+      ref
+          .read(pedidosClienteControllerProvider.notifier)
+          .cargarPedidos(usuario.idUsuario!);
     }
   }
-  
+
   Future<void> _logout() async {
     final confirmed = await _showLogoutDialog();
     if (confirmed == true) {
@@ -99,10 +108,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
         selectedItemColor: Colors.blue.shade600,
         unselectedItemColor: Colors.grey.shade600,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.store),
-            label: 'Tienda',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Tienda'),
           BottomNavigationBarItem(
             icon: Icon(Icons.shopping_cart),
             label: 'Carrito',
@@ -111,10 +117,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
             icon: Icon(Icons.receipt_long),
             label: 'Pedidos',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
     );
@@ -137,7 +140,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
 
   Widget _buildTiendaTab() {
     final tiendaState = ref.watch(tiendaControllerProvider);
-    
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -149,8 +152,8 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
           ],
           _buildCategoriesSection(),
           const SizedBox(height: 20),
-          if (tiendaState.mostrarTodosLosProductos) 
-            _buildTodosLosProductos() 
+          if (tiendaState.mostrarTodosLosProductos)
+            _buildTodosLosProductos()
           else
             _buildProductsSection(),
         ],
@@ -174,7 +177,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '¡Bienvenido a InventarioApp!',
+            '¡Bienvenido a SIGIM!',
             style: TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -185,7 +188,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
           Text(
             'Encuentra los mejores productos para tu hogar',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               fontSize: 14,
             ),
           ),
@@ -196,45 +199,48 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
 
   Widget _buildCategoriesSection() {
     final tiendaState = ref.watch(tiendaControllerProvider);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Categorías',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         SizedBox(
           height: 100,
-          child: tiendaState.categorias.isEmpty 
-            ? const Center(child: Text('Cargando categorías...'))
-            : ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: tiendaState.categorias.length,
-                itemBuilder: (context, index) {
-                  final categoria = tiendaState.categorias[index];
-                  return _buildCategoryCard(
-                    categoria, 
-                    _getCategoriaIcon(categoria), 
-                    _getCategoriaColor(categoria),
-                    onTap: () {
-                      ref.read(tiendaControllerProvider.notifier).filtrarPorCategoria(categoria);
-                      setState(() => _selectedIndex = 0);
-                    },
-                  );
-                },
-              ),
+          child: tiendaState.categorias.isEmpty
+              ? const Center(child: Text('Cargando categorías...'))
+              : ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: tiendaState.categorias.length,
+                  itemBuilder: (context, index) {
+                    final categoria = tiendaState.categorias[index];
+                    return _buildCategoryCard(
+                      categoria,
+                      _getCategoriaIcon(categoria),
+                      _getCategoriaColor(categoria),
+                      onTap: () {
+                        ref
+                            .read(tiendaControllerProvider.notifier)
+                            .filtrarPorCategoria(categoria);
+                        setState(() => _selectedIndex = 0);
+                      },
+                    );
+                  },
+                ),
         ),
       ],
     );
   }
 
-  Widget _buildCategoryCard(String name, IconData icon, Color color, {VoidCallback? onTap}) {
+  Widget _buildCategoryCard(
+    String name,
+    IconData icon,
+    Color color, {
+    VoidCallback? onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -242,9 +248,9 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -268,40 +274,45 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
 
   Widget _buildProductsSection() {
     final tiendaState = ref.watch(tiendaControllerProvider);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'Productos Destacados',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             TextButton(
               onPressed: () {
-                ref.read(tiendaControllerProvider.notifier).mostrarTodosLosProductos();
+                ref
+                    .read(tiendaControllerProvider.notifier)
+                    .mostrarTodosLosProductos();
               },
               child: const Text('Ver todos'),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        
+
         if (tiendaState.isLoading)
           const Center(child: CircularProgressIndicator())
         else if (tiendaState.error != null)
           Center(
             child: Column(
               children: [
-                Text('Error: ${tiendaState.error}', style: const TextStyle(color: Colors.red)),
+                Text(
+                  'Error: ${tiendaState.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
                 ElevatedButton(
-                  onPressed: () => ref.read(tiendaControllerProvider.notifier).cargarDatosIniciales(),
+                  onPressed: () => ref
+                      .read(tiendaControllerProvider.notifier)
+                      .cargarDatosIniciales(),
                   child: const Text('Reintentar'),
                 ),
               ],
@@ -319,7 +330,9 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
             ),
-            itemCount: tiendaState.productosDestacados.length > 4 ? 4 : tiendaState.productosDestacados.length,
+            itemCount: tiendaState.productosDestacados.length > 4
+                ? 4
+                : tiendaState.productosDestacados.length,
             itemBuilder: (context, index) {
               final producto = tiendaState.productosDestacados[index];
               return _buildProductCard(
@@ -335,27 +348,36 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
   // Métodos helper para categorías
   Color _getCategoriaColor(String categoria) {
     switch (categoria.toLowerCase()) {
-      case 'muebles': return Colors.brown;
-      case 'decoración': return Colors.purple;
-      case 'cocina': return Colors.green;
-      case 'dormitorio': return Colors.blue;
-      default: return Colors.grey;
+      case 'muebles':
+        return Colors.brown;
+      case 'decoración':
+        return Colors.purple;
+      case 'cocina':
+        return Colors.green;
+      case 'dormitorio':
+        return Colors.blue;
+      default:
+        return Colors.grey;
     }
   }
 
   IconData _getCategoriaIcon(String categoria) {
     switch (categoria.toLowerCase()) {
-      case 'muebles': return Icons.chair;
-      case 'decoración': return Icons.brush;
-      case 'cocina': return Icons.kitchen;
-      case 'dormitorio': return Icons.bed;
-      default: return Icons.category;
+      case 'muebles':
+        return Icons.chair;
+      case 'decoración':
+        return Icons.brush;
+      case 'cocina':
+        return Icons.kitchen;
+      case 'dormitorio':
+        return Icons.bed;
+      default:
+        return Icons.category;
     }
   }
 
   // Método para mostrar detalle del producto
   void _mostrarDetalleProducto(Producto producto) {
-    print('Mostrando detalle del producto: ${producto.nombre}'); // Debug
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -371,8 +393,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                 Text('Dimensiones: ${producto.dimensiones}'),
               if (producto.material != null)
                 Text('Material: ${producto.material}'),
-              if (producto.color != null)
-                Text('Color: ${producto.color}'),
+              if (producto.color != null) Text('Color: ${producto.color}'),
               const SizedBox(height: 8),
               Text(
                 'Precio: \$${producto.precio.toStringAsFixed(2)}',
@@ -395,7 +416,9 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-                ref.read(carritoControllerProvider.notifier).agregarProducto(producto);
+                ref
+                    .read(carritoControllerProvider.notifier)
+                    .agregarProducto(producto);
                 _showSnackBar('Producto agregado al carrito');
               },
               child: const Text('Agregar al Carrito'),
@@ -409,7 +432,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
   Widget _buildPedidoCard(Pedido pedido) {
     Color estadoColor;
     IconData estadoIcon;
-    
+
     switch (pedido.nombreEstado?.toLowerCase()) {
       case 'pendiente':
         estadoColor = Colors.orange;
@@ -454,9 +477,12 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: estadoColor.withOpacity(0.1),
+                    color: estadoColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: estadoColor),
                   ),
@@ -504,19 +530,29 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  ...pedido.detalles!.take(3).map((detalle) => Padding(
-                    padding: const EdgeInsets.only(left: 8, top: 2),
-                    child: Text(
-                      '• ${detalle.cantidad}x Producto (ID: ${detalle.idProducto})',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                    ),
-                  )),
+                  ...pedido.detalles!
+                      .take(3)
+                      .map(
+                        (detalle) => Padding(
+                          padding: const EdgeInsets.only(left: 8, top: 2),
+                          child: Text(
+                            '• ${detalle.cantidad}x Producto (ID: ${detalle.idProducto})',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
                   if (pedido.detalles!.length > 3)
                     Padding(
                       padding: const EdgeInsets.only(left: 8, top: 2),
                       child: Text(
                         '... y ${pedido.detalles!.length - 3} productos más',
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                 ],
@@ -544,7 +580,9 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: _getCategoriaColor(item.producto.categoria).withOpacity(0.1),
+                color: _getCategoriaColor(
+                  item.producto.categoria,
+                ).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -554,7 +592,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
               ),
             ),
             const SizedBox(width: 16),
-            
+
             // Información del producto
             Expanded(
               child: Column(
@@ -578,17 +616,25 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                       // Botones de cantidad
                       IconButton(
                         onPressed: () {
-                          ref.read(carritoControllerProvider.notifier).actualizarCantidad(
-                            item.producto.idProducto!,
-                            item.cantidad - 1,
-                          );
+                          ref
+                              .read(carritoControllerProvider.notifier)
+                              .actualizarCantidad(
+                                item.producto.idProducto!,
+                                item.cantidad - 1,
+                              );
                         },
                         icon: const Icon(Icons.remove_circle_outline),
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
                         padding: EdgeInsets.zero,
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey.shade300),
                           borderRadius: BorderRadius.circular(8),
@@ -602,11 +648,18 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                         ),
                       ),
                       IconButton(
-                        onPressed: item.cantidad < item.producto.stock ? () {
-                          ref.read(carritoControllerProvider.notifier).agregarProducto(item.producto);
-                        } : null,
+                        onPressed: item.cantidad < item.producto.stock
+                            ? () {
+                                ref
+                                    .read(carritoControllerProvider.notifier)
+                                    .agregarProducto(item.producto);
+                              }
+                            : null,
                         icon: const Icon(Icons.add_circle_outline),
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
                         padding: EdgeInsets.zero,
                       ),
                     ],
@@ -614,14 +667,16 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                 ],
               ),
             ),
-            
+
             // Precio total y eliminar
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 IconButton(
                   onPressed: () {
-                    ref.read(carritoControllerProvider.notifier).eliminarProducto(item.producto.idProducto!);
+                    ref
+                        .read(carritoControllerProvider.notifier)
+                        .eliminarProducto(item.producto.idProducto!);
                     _showSnackBar('Producto eliminado del carrito');
                   },
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -643,77 +698,21 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
     );
   }
 
-  // Método para procesar la compra
-  void _procesarCompra() async {
-    final usuario = ref.read(authControllerProvider).usuario;
-    if (usuario == null) {
-      _showSnackBar('Error: Usuario no encontrado');
-      return;
-    }
+  // (Obsoleto) Método procesarCompra removido en favor de checkout avanzado.
 
-    final carritoState = ref.read(carritoControllerProvider);
-    if (carritoState.items.isEmpty) {
-      _showSnackBar('El carrito está vacío');
-      return;
-    }
-
-    // Mostrar diálogo de confirmación
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirmar Compra'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Total a pagar: \$${carritoState.total.toStringAsFixed(2)}'),
-            const SizedBox(height: 16),
-            const Text('¿Deseas proceder con la compra?'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Confirmar'),
-          ),
-        ],
-      ),
+  // Navegar a pantalla de checkout
+  Future<void> _irACheckout() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CheckoutScreen()),
     );
-
-    if (confirmar == true) {
-      try {
-        // Mostrar loading
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
-
-        // Crear el pedido
-        final exito = await ref.read(carritoControllerProvider.notifier).procesarPedido(usuario.idUsuario!);
-        if (!exito) throw Exception('Error al crear el pedido');
-        
-        // Cerrar loading
-        if (mounted) Navigator.pop(context);
-        
-        // Mostrar éxito y navegar a pedidos
-        _showSnackBar('¡Compra realizada con éxito!');
-        setState(() => _selectedIndex = 2); // Navegar a pedidos
-        
-        // Recargar pedidos
-        ref.read(pedidosClienteControllerProvider.notifier).cargarPedidos(usuario.idUsuario!);
-        
-      } catch (e) {
-        // Cerrar loading si está abierto
-        if (mounted) Navigator.pop(context);
-        _showSnackBar('Error al procesar la compra: $e');
+    if (result == true) {
+      final usuario = ref.read(authControllerProvider).usuario;
+      if (usuario != null) {
+        setState(() => _selectedIndex = 2);
+        ref
+            .read(pedidosClienteControllerProvider.notifier)
+            .cargarPedidos(usuario.idUsuario!);
       }
     }
   }
@@ -726,11 +725,11 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.05),
               spreadRadius: 1,
               blurRadius: 6,
               offset: const Offset(0, 2),
@@ -745,8 +744,12 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: _getCategoriaColor(producto.categoria).withOpacity(0.1),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  color: _getCategoriaColor(
+                    producto.categoria,
+                  ).withValues(alpha: 0.1),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -758,7 +761,10 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: producto.tieneStock ? Colors.green : Colors.red,
                         borderRadius: BorderRadius.circular(12),
@@ -813,7 +819,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
 
   Widget _buildCarritoTab() {
     final carritoState = ref.watch(carritoControllerProvider);
-    
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -823,9 +829,11 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: Theme.of(context).colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -835,11 +843,13 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade700,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
                   ),
                   ElevatedButton(
-                    onPressed: carritoState.items.isNotEmpty ? _procesarCompra : null,
+                    onPressed: carritoState.items.isNotEmpty
+                        ? _irACheckout
+                        : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
@@ -849,9 +859,9 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                 ],
               ),
             ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Lista de productos
           Expanded(
             child: carritoState.items.isEmpty
@@ -875,9 +885,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Agrega productos desde la tienda',
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                          ),
+                          style: TextStyle(color: Colors.grey.shade500),
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton(
@@ -906,7 +914,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
 
   Widget _buildPedidosTab() {
     final pedidosState = ref.watch(pedidosClienteControllerProvider);
-    
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -919,12 +927,19 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Error: ${pedidosState.error}', style: const TextStyle(color: Colors.red)),
+                    Text(
+                      'Error: ${pedidosState.error}',
+                      style: const TextStyle(color: Colors.red),
+                    ),
                     ElevatedButton(
                       onPressed: () {
-                        final usuario = ref.read(authControllerProvider).usuario;
+                        final usuario = ref
+                            .read(authControllerProvider)
+                            .usuario;
                         if (usuario != null) {
-                          ref.read(pedidosClienteControllerProvider.notifier).cargarPedidos(usuario.idUsuario!);
+                          ref
+                              .read(pedidosClienteControllerProvider.notifier)
+                              .cargarPedidos(usuario.idUsuario!);
                         }
                       },
                       child: const Text('Reintentar'),
@@ -955,9 +970,7 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                     const SizedBox(height: 8),
                     Text(
                       'Realiza tu primera compra',
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                      ),
+                      style: TextStyle(color: Colors.grey.shade500),
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
@@ -978,7 +991,9 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                 onRefresh: () async {
                   final usuario = ref.read(authControllerProvider).usuario;
                   if (usuario != null) {
-                    await ref.read(pedidosClienteControllerProvider.notifier).cargarPedidos(usuario.idUsuario!);
+                    await ref
+                        .read(pedidosClienteControllerProvider.notifier)
+                        .cargarPedidos(usuario.idUsuario!);
                   }
                 },
                 child: ListView.builder(
@@ -996,6 +1011,9 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
   }
 
   Widget _buildPerfilTab() {
+    final usuario = ref.watch(authControllerProvider).usuario;
+    final mode = ref.watch(themeControllerProvider);
+    final themeCtrl = ref.read(themeControllerProvider.notifier);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -1004,103 +1022,128 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
           const CircleAvatar(
             radius: 50,
             backgroundColor: Colors.blue,
-            child: Icon(
-              Icons.person,
-              size: 50,
-              color: Colors.white,
-            ),
+            child: Icon(Icons.person, size: 50, color: Colors.white),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Cliente',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+          Text(
+            usuario?.nombreCompleto ?? 'Cliente',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
-          const Text(
-            'cliente@inventarioapp.com',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 16,
-            ),
+          Text(
+            usuario?.nombreRol ?? 'Cliente',
+            style: const TextStyle(color: Colors.grey, fontSize: 16),
           ),
           const SizedBox(height: 30),
+          // Toggle de tema claro/oscuro
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Icon(Icons.brightness_6),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Tema claro / oscuro')),
+                  Switch(
+                    value: mode == ThemeMode.dark,
+                    onChanged: (_) => themeCtrl.toggle(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           _buildProfileOption(
             icon: Icons.edit,
             title: 'Editar Perfil',
-            onTap: () => _showSnackBar('Editar Perfil - Próximamente'),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PerfilScreen()),
+              );
+            },
           ),
           _buildProfileOption(
             icon: Icons.location_on,
             title: 'Direcciones',
-            onTap: () => _showSnackBar('Gestionar Direcciones - Próximamente'),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DireccionesScreen()),
+              );
+            },
           ),
           _buildProfileOption(
             icon: Icons.payment,
             title: 'Métodos de Pago',
-            onTap: () => _showSnackBar('Métodos de Pago - Próximamente'),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MetodosPagoScreen()),
+              );
+            },
           ),
           _buildProfileOption(
             icon: Icons.help,
             title: 'Ayuda y Soporte',
-            onTap: () => _showSnackBar('Ayuda - Próximamente'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AyudaScreen()),
+            ),
           ),
           _buildProfileOption(
             icon: Icons.info,
             title: 'Acerca de',
-            onTap: () => _showSnackBar('Acerca de - Próximamente'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AcercaScreen()),
+            ),
           ),
         ],
       ),
     );
   }
 
+  // Opción de perfil reutilizable
   Widget _buildProfileOption({
     required IconData icon,
     required String title,
     required VoidCallback onTap,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
-        leading: Icon(icon, color: Colors.blue.shade600),
-        title: Text(title),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+        leading: CircleAvatar(
+          backgroundColor: Colors.blue.shade50,
+          child: Icon(icon, color: Colors.blue.shade600),
         ),
-        tileColor: Colors.grey.shade50,
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
       ),
     );
   }
 
   void _showSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.blue.shade700,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
 
   // Método para mostrar búsqueda
   void _mostrarBusqueda() {
-    showSearch(
-      context: context,
-      delegate: ProductoSearchDelegate(ref),
-    );
+    showSearch(context: context, delegate: ProductoSearchDelegate(ref));
   }
 
   // Widget para mostrar todos los productos
   Widget _buildTodosLosProductos() {
     final tiendaState = ref.watch(tiendaControllerProvider);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1109,17 +1152,16 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
           children: [
             IconButton(
               onPressed: () {
-                ref.read(tiendaControllerProvider.notifier).mostrarProductosDestacados();
+                ref
+                    .read(tiendaControllerProvider.notifier)
+                    .mostrarProductosDestacados();
               },
               icon: const Icon(Icons.arrow_back),
             ),
             const Expanded(
               child: Text(
                 'Todos los Productos',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
             // Filtro por categoría
@@ -1127,15 +1169,19 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
               PopupMenuButton<String>(
                 icon: Icon(
                   Icons.filter_list,
-                  color: tiendaState.categoriaSeleccionada != null 
-                      ? Colors.blue.shade600 
+                  color: tiendaState.categoriaSeleccionada != null
+                      ? Colors.blue.shade600
                       : Colors.grey.shade600,
                 ),
                 onSelected: (categoria) {
                   if (categoria == 'todos') {
-                    ref.read(tiendaControllerProvider.notifier).filtrarPorCategoria(null);
+                    ref
+                        .read(tiendaControllerProvider.notifier)
+                        .filtrarPorCategoria(null);
                   } else {
-                    ref.read(tiendaControllerProvider.notifier).filtrarPorCategoria(categoria);
+                    ref
+                        .read(tiendaControllerProvider.notifier)
+                        .filtrarPorCategoria(categoria);
                   }
                 },
                 itemBuilder: (context) => [
@@ -1143,17 +1189,17 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                     value: 'todos',
                     child: Text('Todas las categorías'),
                   ),
-                  ...tiendaState.categorias.map((categoria) => PopupMenuItem(
-                    value: categoria,
-                    child: Text(categoria),
-                  )),
+                  ...tiendaState.categorias.map(
+                    (categoria) =>
+                        PopupMenuItem(value: categoria, child: Text(categoria)),
+                  ),
                 ],
               ),
           ],
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // Indicador de categoría seleccionada
         if (tiendaState.categoriaSeleccionada != null)
           Container(
@@ -1171,17 +1217,26 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
                 const SizedBox(width: 8),
                 Text(
                   'Categoría: ${tiendaState.categoriaSeleccionada}',
-                  style: TextStyle(color: Colors.blue.shade700, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    color: Colors.blue.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: () => ref.read(tiendaControllerProvider.notifier).filtrarPorCategoria(null),
-                  child: Icon(Icons.close, color: Colors.blue.shade600, size: 18),
+                  onTap: () => ref
+                      .read(tiendaControllerProvider.notifier)
+                      .filtrarPorCategoria(null),
+                  child: Icon(
+                    Icons.close,
+                    color: Colors.blue.shade600,
+                    size: 18,
+                  ),
                 ),
               ],
             ),
           ),
-        
+
         // Lista de productos
         if (tiendaState.isLoading)
           const Center(child: CircularProgressIndicator())
@@ -1189,10 +1244,15 @@ class _ClienteHomeScreenState extends ConsumerState<ClienteHomeScreen> {
           Center(
             child: Column(
               children: [
-                Text('Error: ${tiendaState.error}', style: const TextStyle(color: Colors.red)),
+                Text(
+                  'Error: ${tiendaState.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () => ref.read(tiendaControllerProvider.notifier).cargarProductos(),
+                  onPressed: () => ref
+                      .read(tiendaControllerProvider.notifier)
+                      .cargarProductos(),
                   child: const Text('Reintentar'),
                 ),
               ],

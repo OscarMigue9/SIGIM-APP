@@ -1,47 +1,14 @@
 // Configuración de Supabase
+//
+// Las credenciales se inyectan por variables de entorno/Dart-define.
+// Ejemplo:
+// flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
+// flutter build apk ... --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
 
 class SupabaseConfig {
-  // Credenciales de Supabase configuradas
-  static const String supabaseUrl = 'https://mvgcmaoegxbgexehbtbl.supabase.co';
-  static const String supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12Z2NtYW9lZ3hiZ2V4ZWhidGJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzU4MjQsImV4cCI6MjA3NDkxMTgyNH0.0hCxsD_KIm4Ei__uwfqOQ83S_zsjdA_C38opS758os8';
-  
+  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // Validar que las credenciales estén configuradas
   static bool get isConfigured =>
       supabaseUrl.isNotEmpty &&
       supabaseAnonKey.isNotEmpty;

@@ -7,11 +7,26 @@ class SupabaseService {
   
   SupabaseService._();
   
-  late final SupabaseClient _client;
+  SupabaseClient? _client;
   
-  SupabaseClient get client => _client;
+  // Evita acceder al cliente sin inicializar para obtener un error claro
+  SupabaseClient get client {
+    final client = _client;
+    if (client == null) {
+      throw StateError(
+        'SupabaseService no ha sido inicializado. '
+        'Llama a initialize() antes de usar los servicios.',
+      );
+    }
+    return client;
+  }
+  
+  bool get isInitialized => _client != null;
   
   Future<void> initialize() async {
+    // Idempotente: si ya se inicializó, no hace nada
+    if (_client != null) return;
+    
     if (!SupabaseConfig.isConfigured) {
       throw Exception(
         'Supabase no configurado. '
@@ -27,9 +42,9 @@ class SupabaseService {
   }
   
   // Auth helpers
-  User? get currentUser => _client.auth.currentUser;
+  User? get currentUser => client.auth.currentUser;
   bool get isAuthenticated => currentUser != null;
   
   // Stream para cambios de autenticación
-  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+  Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/producto.dart';
+import '../services/ajuste_inventario_service.dart';
 import '../services/producto_service.dart';
 
 // Estado de productos
@@ -9,6 +10,8 @@ class ProductoState {
   final String? error;
   final String? searchQuery;
   final String? categoriaSeleccionada;
+  final int? minStock;
+  final int? maxStock;
 
   ProductoState({
     this.productos = const [],
@@ -16,6 +19,8 @@ class ProductoState {
     this.error,
     this.searchQuery,
     this.categoriaSeleccionada,
+    this.minStock,
+    this.maxStock,
   });
 
   ProductoState copyWith({
@@ -24,28 +29,43 @@ class ProductoState {
     String? error,
     String? searchQuery,
     String? categoriaSeleccionada,
+    int? minStock,
+    int? maxStock,
   }) {
     return ProductoState(
       productos: productos ?? this.productos,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
       searchQuery: searchQuery ?? this.searchQuery,
-      categoriaSeleccionada: categoriaSeleccionada ?? this.categoriaSeleccionada,
+      categoriaSeleccionada:
+          categoriaSeleccionada ?? this.categoriaSeleccionada,
+      minStock: minStock ?? this.minStock,
+      maxStock: maxStock ?? this.maxStock,
     );
   }
 
-  List<Producto> get productosConStock => 
+  List<Producto> get productosConStock =>
       productos.where((p) => p.tieneStock).toList();
-      
-  List<Producto> get productosStockBajo => 
+
+  List<Producto> get productosStockBajo =>
       productos.where((p) => p.stockBajo).toList();
+
+  List<Producto> get productosFiltradosPorStock {
+    return productos.where((p) {
+      final cumpleMin = minStock == null ? true : p.stock >= minStock!;
+      final cumpleMax = maxStock == null ? true : p.stock <= maxStock!;
+      return cumpleMin && cumpleMax;
+    }).toList();
+  }
 }
 
 // Controller de productos
 class ProductoController extends StateNotifier<ProductoState> {
   final ProductoService _productoService;
+  final AjusteInventarioService _ajusteService;
 
-  ProductoController(this._productoService) : super(ProductoState());
+  ProductoController(this._productoService, this._ajusteService)
+    : super(ProductoState());
 
   Future<void> cargarProductos() async {
     state = state.copyWith(isLoading: true, error: null);
@@ -109,27 +129,25 @@ class ProductoController extends StateNotifier<ProductoState> {
       state = state.copyWith(productos: productosActuales);
       return true;
     } catch (e) {
-      state = state.copyWith(
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
+      state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
       return false;
     }
   }
 
   Future<bool> actualizarProducto(Producto producto) async {
     try {
-      final productoActualizado = await _productoService.actualizarProducto(producto);
+      final productoActualizado = await _productoService.actualizarProducto(
+        producto,
+      );
       final productosActuales = state.productos.map((p) {
-        return p.idProducto == productoActualizado.idProducto 
-            ? productoActualizado 
+        return p.idProducto == productoActualizado.idProducto
+            ? productoActualizado
             : p;
       }).toList();
       state = state.copyWith(productos: productosActuales);
       return true;
     } catch (e) {
-      state = state.copyWith(
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
+      state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
       return false;
     }
   }
@@ -143,9 +161,7 @@ class ProductoController extends StateNotifier<ProductoState> {
       state = state.copyWith(productos: productosActuales);
       return true;
     } catch (e) {
-      state = state.copyWith(
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
+      state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
       return false;
     }
   }
@@ -173,9 +189,7 @@ class ProductoController extends StateNotifier<ProductoState> {
       await cargarProductos(); // Recargar lista
       return true;
     } catch (e) {
-      state = state.copyWith(
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
+      state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
       return false;
     }
   }
@@ -183,15 +197,78 @@ class ProductoController extends StateNotifier<ProductoState> {
   void clearError() {
     state = state.copyWith(error: null);
   }
+
+  void setStockRange({int? min, int? max}) {
+    state = state.copyWith(minStock: min, maxStock: max);
+  }
+
+  Future<bool> aplicarAjusteInventario({
+    required int idProducto,
+    required int nuevoStock,
+    required String motivo,
+  }) async {
+    try {
+      final productoActual = state.productos.firstWhere(
+        (p) => p.idProducto == idProducto,
+        orElse: () => throw Exception('Producto no encontrado en memoria'),
+      );
+
+      final delta = nuevoStock - productoActual.stock;
+      if (delta == 0) {
+        throw Exception('El stock no cambió');
+      }
+      if (motivo.trim().isEmpty) {
+        throw Exception('Motivo requerido');
+      }
+
+      final ajuste = await _ajusteService.aplicarAjuste(
+        idProducto: idProducto,
+        delta: delta,
+        motivo: motivo,
+      );
+
+      // Actualizar la lista local con el nuevo stock
+      final productosActualizados = state.productos.map((p) {
+        if (p.idProducto == idProducto) {
+          return Producto(
+            idProducto: p.idProducto,
+            sku: p.sku,
+            nombre: p.nombre,
+            categoria: p.categoria,
+            dimensiones: p.dimensiones,
+            material: p.material,
+            color: p.color,
+            precio: p.precio,
+            costo: p.costo,
+            stock: ajuste.stockFinal,
+          );
+        }
+        return p;
+      }).toList();
+
+      state = state.copyWith(productos: productosActualizados, error: null);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
+      return false;
+    }
+  }
 }
 
 // Providers
-final productoServiceProvider = Provider<ProductoService>((ref) => ProductoService());
+final productoServiceProvider = Provider<ProductoService>(
+  (ref) => ProductoService(),
+);
+final ajusteInventarioServiceProvider = Provider<AjusteInventarioService>(
+  (ref) => AjusteInventarioService(),
+);
 
-final productoControllerProvider = StateNotifierProvider<ProductoController, ProductoState>((ref) {
-  final productoService = ref.watch(productoServiceProvider);
-  return ProductoController(productoService);
-});
+final productoControllerProvider =
+    StateNotifierProvider<ProductoController, ProductoState>((ref) {
+      final productoService = ref.watch(productoServiceProvider);
+      final ajusteService = ref.watch(ajusteInventarioServiceProvider);
+      return ProductoController(productoService, ajusteService);
+    });
 
 final categoriasProvider = FutureProvider<List<String>>((ref) async {
   final productoService = ref.watch(productoServiceProvider);
