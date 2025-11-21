@@ -1,2 +1,2 @@
 # SIGIM-APP
-Actualizar stock en base de datos
+Registro de historial de ajustes
