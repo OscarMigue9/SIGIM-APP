@@ -1,2 +1,2 @@
 # SIGIM-APP
-Hola puta
+Editar y eliminar producto
