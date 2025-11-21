@@ -1,2 +1,2 @@
 # SIGIM-APP
-Generar mensajes de confirmación
+Generar umbrales de stock
