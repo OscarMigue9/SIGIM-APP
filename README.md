@@ -1,3 +1,2 @@
 # SIGIM-APP
-Oscar gei
-:V
+Validación de Credenciales
