@@ -1,2 +1,2 @@
 # SIGIM-APP
-Generar umbrales de stock
+Detectar condiciones de alerta
