@@ -1,2 +1,2 @@
 # SIGIM-APP
-Validar existencia de datos
+Generar mensajes de confirmación
