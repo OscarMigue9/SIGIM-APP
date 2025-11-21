@@ -1,2 +1,2 @@
 # SIGIM-APP
-Actualizar estado de pedido
+Consultar historial de cambios
