@@ -1,2 +1,2 @@
 # SIGIM-APP
-Validación de Credenciales
+Asignación de permisos
